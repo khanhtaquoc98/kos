@@ -14,8 +14,6 @@ import httpx
 from pydantic import BaseModel
 
 import database
-from mbbank import MBBank
-from mbbank.errors import MBBankAPIError
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -231,8 +229,9 @@ async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get
 
 # ----------------- API Endpoints -----------------
 
-async def get_mb_client() -> MBBank:
+async def get_mb_client() -> "MBBank":
     """Helper to instantiate and return cached/new MBBank client."""
+    from mbbank import MBBank
     username = database.get_config("mb_username")
     password = database.get_config("mb_password")
     
