@@ -36,7 +36,13 @@ def get_supabase_headers():
 # ----------------- Database Selection Adapter -----------------
 
 def get_sqlite_connection():
-    db_path = os.environ.get("SQLITE_DB_PATH", "db.sqlite")
+    db_path = os.environ.get("SQLITE_DB_PATH")
+    if not db_path:
+        # Detect Vercel runtime environment
+        if os.environ.get("VERCEL") or os.environ.get("NOW_REGION"):
+            db_path = "/tmp/db.sqlite"
+        else:
+            db_path = "db.sqlite"
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
