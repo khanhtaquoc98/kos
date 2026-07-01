@@ -35,6 +35,18 @@ except Exception as e:
 
 templates = Jinja2Templates(directory=templates_dir)
 
+def render_template(request: Request, name: str, context: dict = None, status_code: int = 200):
+    if context is None:
+        context = {}
+    context["request"] = request
+    
+    import inspect
+    sig = inspect.signature(templates.TemplateResponse)
+    if "request" in sig.parameters:
+        return templates.TemplateResponse(request=request, name=name, context=context, status_code=status_code)
+    else:
+        return templates.TemplateResponse(name, context, status_code=status_code)
+
 @app.middleware("http")
 async def check_db_initialization(request: Request, call_next):
     if gateway_db.db_initialization_error:
@@ -138,18 +150,17 @@ async def index_redirect():
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_get(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return render_template(request, "login.html")
 
 @app.post("/login")
-async def login_post(password: str = Form(...)):
+async def login_post(request: Request, password: str = Form(...)):
     admin_pass = gateway_db.get_config("admin_password", "admin123")
     if password == admin_pass:
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="session_token", value=SESSION_TOKEN, httponly=True, max_age=3600*24)
         return response
     
-    return templates.TemplateResponse("login.html", {
-        "request": {},
+    return render_template(request, "login.html", {
         "error": "Mật khẩu Admin không chính xác!"
     })
 
@@ -167,8 +178,7 @@ async def admin_get(request: Request, authenticated: bool = Depends(get_current_
     pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
     processed = gateway_db.get_recent_processed_transactions()
     
-    return templates.TemplateResponse("admin.html", {
-        "request": request,
+    return render_template(request, "admin.html", {
         "configs": configs,
         "pending_payments": pending,
         "processed_transactions": processed
@@ -190,8 +200,7 @@ async def demo_get(request: Request):
         except Exception:
             pass
             
-    return templates.TemplateResponse("demo.html", {
-        "request": request,
+    return render_template(request, "demo.html", {
         "account_number": account_number,
         "account_name": account_name
     })
@@ -208,8 +217,7 @@ async def checkout_get(
     webhook_url: Optional[str] = None
 ):
     if not amount or not content or not orderId:
-        return templates.TemplateResponse("checkout_error.html", {
-            "request": request,
+        return render_template(request, "checkout_error.html", {
             "error": "Thiếu tham số thanh toán bắt buộc (số tiền amount, nội dung content, hoặc mã đơn hàng orderId)."
         })
         
@@ -246,8 +254,7 @@ async def checkout_get(
         except Exception:
             pass
 
-    return templates.TemplateResponse("checkout.html", {
-        "request": request,
+    return render_template(request, "checkout.html", {
         "amount": amount,
         "content": content,
         "callback": callback,
