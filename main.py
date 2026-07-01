@@ -23,6 +23,16 @@ app = FastAPI(title="MB Bank Webhook Gateway", version="0.3.0")
 
 # Setup templates path (in the same directory)
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+logger.info(f"Checking templates path: {templates_dir}")
+try:
+    logger.info(f"Files in task dir: {os.listdir(os.path.dirname(__file__))}")
+    if os.path.exists(templates_dir):
+        logger.info(f"Files in templates dir: {os.listdir(templates_dir)}")
+    else:
+        logger.error("Templates directory DOES NOT exist!")
+except Exception as e:
+    logger.error(f"Error checking directories: {e}")
+
 templates = Jinja2Templates(directory=templates_dir)
 
 @app.middleware("http")
