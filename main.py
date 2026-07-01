@@ -25,6 +25,45 @@ app = FastAPI(title="MB Bank Webhook Gateway", version="0.3.0")
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 
+@app.middleware("http")
+async def check_db_initialization(request: Request, call_next):
+    if database.db_initialization_error:
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": database.db_initialization_error}
+            )
+        else:
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Lỗi Khởi Tạo Database - KOS</title>
+                <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+                <style>
+                    body {{ background: #0b0f19; color: #f3f4f6; font-family: 'Plus Jakarta Sans', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }}
+                    .card {{ background: rgba(17, 24, 39, 0.7); border: 1px solid rgba(239, 68, 68, 0.2); padding: 40px; border-radius: 20px; max-width: 500px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px); }}
+                    h2 {{ color: #ef4444; margin-top: 0; }}
+                    p {{ color: #9ca3af; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; text-align: left; }}
+                    pre {{ background: rgba(0,0,0,0.3); padding: 16px; border-radius: 10px; text-align: left; overflow-x: auto; font-family: monospace; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.05); color: #e5e7eb; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
+                    <h2>Lỗi Kết Nối / Cấu Hình Supabase</h2>
+                    <p>Ứng dụng không thể kết nối hoặc khởi tạo bảng dữ liệu trên Supabase:</p>
+                    <pre>{database.db_initialization_error}</pre>
+                    <p style="margin-top: 20px;"><b>Hướng dẫn khắc phục:</b><br>
+                    1. Vào Vercel Settings -> Environment Variables, điền đúng <code>SUPABASE_URL</code> và <code>SUPABASE_KEY</code>.<br>
+                    2. Kiểm tra xem bạn đã copy nội dung file <code>schema.sql</code> và bấm <b>Run</b> trong <b>Supabase SQL Editor</b> hay chưa.</p>
+                </div>
+            </body>
+            </html>
+            """
+            return HTMLResponse(content=html_content, status_code=500)
+    return await call_next(request)
+
 # Global variables for session/cache
 # In production, use database configs or redis, but we'll fetch from db config table
 # We keep active bank clients cached to avoid re-authenticating every request
