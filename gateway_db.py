@@ -21,8 +21,10 @@ if os.path.exists(".env"):
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
+db_initialization_error = None
+
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("SUPABASE_URL and SUPABASE_KEY environment variables are required. Please configure them in your environment or Vercel dashboard.")
+    db_initialization_error = "SUPABASE_URL and SUPABASE_KEY environment variables are missing. Please add them in the Vercel Project Settings."
 
 def get_supabase_headers():
     return {
@@ -34,10 +36,10 @@ def get_supabase_headers():
 # ----------------- Database Initialization -----------------
 
 def init_db():
-    """
-    Initialize database tables on Supabase.
-    Checks connection to Supabase REST endpoint.
-    """
+    global db_initialization_error
+    if db_initialization_error:
+        return
+
     # Check connection to Supabase REST endpoint
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?limit=1"
     try:
@@ -45,31 +47,42 @@ def init_db():
         if r.status_code == 200:
             logger.info("Connected to Supabase config table successfully.")
         elif r.status_code == 404:
-            logger.error("Supabase config table not found. Please run the SQL schema initialization in the Supabase SQL editor.")
-            raise RuntimeError("Supabase config table not found. Please run schema.sql in Supabase SQL Editor.")
+            err_msg = "Supabase config table not found. Please run the SQL schema initialization in the Supabase SQL editor using schema.sql."
+            logger.error(err_msg)
+            db_initialization_error = err_msg
+            return
         else:
-            logger.error(f"Failed to connect to Supabase (HTTP {r.status_code}): {r.text}")
-            raise RuntimeError(f"Failed to connect to Supabase: {r.text}")
+            err_msg = f"Failed to connect to Supabase (HTTP {r.status_code}): {r.text}"
+            logger.error(err_msg)
+            db_initialization_error = err_msg
+            return
     except Exception as e:
-        logger.error(f"Failed to reach Supabase API: {e}")
-        raise e
+        err_msg = f"Failed to reach Supabase API: {e}"
+        logger.error(err_msg)
+        db_initialization_error = err_msg
+        return
         
     # Ensure default configs are populated on Supabase
-    default_configs = {
-        "admin_password": os.environ.get("ADMIN_PASSWORD", "admin123"),
-        "mb_username": os.environ.get("MB_USERNAME", ""),
-        "mb_password": os.environ.get("MB_PASSWORD", ""),
-        "mb_account_number": os.environ.get("MB_ACCOUNT_NUMBER", ""),
-        "default_callback_url": os.environ.get("DEFAULT_CALLBACK_URL", ""),
-        "callback_secret": os.environ.get("CALLBACK_SECRET", "super-secret-callback-token")
-    }
-    for key, val in default_configs.items():
-        if get_config(key) is None:
-            set_config(key, val)
+    try:
+        default_configs = {
+            "admin_password": os.environ.get("ADMIN_PASSWORD", "admin123"),
+            "mb_username": os.environ.get("MB_USERNAME", ""),
+            "mb_password": os.environ.get("MB_PASSWORD", ""),
+            "mb_account_number": os.environ.get("MB_ACCOUNT_NUMBER", ""),
+            "default_callback_url": os.environ.get("DEFAULT_CALLBACK_URL", ""),
+            "callback_secret": os.environ.get("CALLBACK_SECRET", "super-secret-callback-token")
+        }
+        for key, val in default_configs.items():
+            if get_config(key) is None:
+                set_config(key, val)
+    except Exception as e:
+        db_initialization_error = f"Error populating default configurations: {e}"
 
 # ----------------- Configuration Helpers -----------------
 
 def get_config(key, default=None):
+    if db_initialization_error:
+        return default
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=value"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -82,6 +95,8 @@ def get_config(key, default=None):
     return default
 
 def set_config(key, value):
+    if db_initialization_error:
+        return
     # Check if already exists to do PATCH (Update) or POST (Insert)
     exist_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=key"
     try:
@@ -98,6 +113,8 @@ def set_config(key, value):
         logger.error(f"Supabase set_config error: {e}")
 
 def get_all_configs():
+    if db_initialization_error:
+        return {}
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?select=key,value"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -110,6 +127,8 @@ def get_all_configs():
 # ----------------- Processed Transactions -----------------
 
 def is_transaction_processed(trans_no):
+    if db_initialization_error:
+        return False
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/processed_transactions?trans_no=eq.{trans_no}&select=trans_no"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -120,6 +139,8 @@ def is_transaction_processed(trans_no):
     return False
 
 def add_processed_transaction(trans_no, amount, details, date):
+    if db_initialization_error:
+        return False
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/processed_transactions"
     payload = {
         "trans_no": trans_no,
@@ -135,6 +156,8 @@ def add_processed_transaction(trans_no, amount, details, date):
         return False
 
 def get_recent_processed_transactions(limit=20):
+    if db_initialization_error:
+        return []
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/processed_transactions?order=processed_at.desc&limit={limit}"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -147,6 +170,8 @@ def get_recent_processed_transactions(limit=20):
 # ----------------- Pending Payments -----------------
 
 def add_pending_payment(payment_id, reference_id, amount, content, callback_url):
+    if db_initialization_error:
+        return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments"
     payload = {
         "id": payment_id,
@@ -162,6 +187,8 @@ def add_pending_payment(payment_id, reference_id, amount, content, callback_url)
         logger.error(f"Supabase add_pending_payment error: {e}")
 
 def get_pending_payments(limit=50):
+    if db_initialization_error:
+        return []
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?order=created_at.desc&limit={limit}"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -172,6 +199,8 @@ def get_pending_payments(limit=50):
     return []
 
 def update_pending_payment_status(payment_id, status):
+    if db_initialization_error:
+        return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{payment_id}"
     try:
         requests.patch(url, json={"status": status}, headers=get_supabase_headers())
@@ -179,6 +208,8 @@ def update_pending_payment_status(payment_id, status):
         logger.error(f"Supabase update_pending_payment_status error: {e}")
 
 def get_pending_payment_status(reference_id):
+    if db_initialization_error:
+        return None
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{reference_id}&select=status&order=created_at.desc&limit=1"
     try:
         r = requests.get(url, headers=get_supabase_headers())
@@ -191,6 +222,8 @@ def get_pending_payment_status(reference_id):
     return None
 
 def delete_pending_payment(payment_id):
+    if db_initialization_error:
+        return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{payment_id}"
     try:
         requests.delete(url, headers=get_supabase_headers())
@@ -198,6 +231,8 @@ def delete_pending_payment(payment_id):
         logger.error(f"Supabase delete_pending_payment error: {e}")
 
 def delete_all_pending_payments():
+    if db_initialization_error:
+        return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?status=eq.pending"
     try:
         requests.delete(url, headers=get_supabase_headers())

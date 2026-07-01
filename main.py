@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 from pydantic import BaseModel
 
-import database
+import gateway_db
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -27,11 +27,11 @@ templates = Jinja2Templates(directory=templates_dir)
 
 @app.middleware("http")
 async def check_db_initialization(request: Request, call_next):
-    if database.db_initialization_error:
+    if gateway_db.db_initialization_error:
         if request.url.path.startswith("/api/"):
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "error": database.db_initialization_error}
+                content={"success": False, "error": gateway_db.db_initialization_error}
             )
         else:
             html_content = f"""
@@ -53,7 +53,7 @@ async def check_db_initialization(request: Request, call_next):
                     <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
                     <h2>Lỗi Kết Nối / Cấu Hình Supabase</h2>
                     <p>Ứng dụng không thể kết nối hoặc khởi tạo bảng dữ liệu trên Supabase:</p>
-                    <pre>{database.db_initialization_error}</pre>
+                    <pre>{gateway_db.db_initialization_error}</pre>
                     <p style="margin-top: 20px;"><b>Hướng dẫn khắc phục:</b><br>
                     1. Vào Vercel Settings -> Environment Variables, điền đúng <code>SUPABASE_URL</code> và <code>SUPABASE_KEY</code>.<br>
                     2. Kiểm tra xem bạn đã copy nội dung file <code>schema.sql</code> và bấm <b>Run</b> trong <b>Supabase SQL Editor</b> hay chưa.</p>
@@ -73,7 +73,7 @@ bank_clients = {}  # username -> MBBank
 @app.on_event("startup")
 def startup_db():
     try:
-        database.init_db()
+        gateway_db.init_db()
         logger.info("Database initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
@@ -132,7 +132,7 @@ async def login_get(request: Request):
 
 @app.post("/login")
 async def login_post(password: str = Form(...)):
-    admin_pass = database.get_config("admin_password", "admin123")
+    admin_pass = gateway_db.get_config("admin_password", "admin123")
     if password == admin_pass:
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="session_token", value=SESSION_TOKEN, httponly=True, max_age=3600*24)
@@ -153,9 +153,9 @@ async def logout():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_get(request: Request, authenticated: bool = Depends(get_current_user)):
-    configs = database.get_all_configs()
-    pending = [p for p in database.get_pending_payments() if p["status"] == "pending"]
-    processed = database.get_recent_processed_transactions()
+    configs = gateway_db.get_all_configs()
+    pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
+    processed = gateway_db.get_recent_processed_transactions()
     
     return templates.TemplateResponse("admin.html", {
         "request": request,
@@ -167,11 +167,11 @@ async def admin_get(request: Request, authenticated: bool = Depends(get_current_
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_get(request: Request):
     """Public demo page representing the checkout QR code page for users."""
-    account_number = database.get_config("mb_account_number") or database.get_config("mb_username")
+    account_number = gateway_db.get_config("mb_account_number") or gateway_db.get_config("mb_username")
     
     # Attempt to fetch owner name from active client session
     account_name = "Chưa kết nối Bank"
-    username = database.get_config("mb_username")
+    username = gateway_db.get_config("mb_username")
     if username and username in bank_clients:
         try:
             client = bank_clients[username]
@@ -206,11 +206,11 @@ async def checkout_get(
     content = content.upper().strip()
     
     # Check if this pending payment already exists in database
-    existing_status = database.get_pending_payment_status(orderId)
+    existing_status = gateway_db.get_pending_payment_status(orderId)
     if not existing_status or existing_status != 'pending':
         payment_id = str(uuid.uuid4())
         try:
-            database.add_pending_payment(
+            gateway_db.add_pending_payment(
                 payment_id=payment_id,
                 reference_id=orderId,
                 amount=amount,
@@ -223,11 +223,11 @@ async def checkout_get(
         except Exception as e:
             logger.error(f"Error registering pending payment in checkout: {e}")
 
-    account_number = database.get_config("mb_account_number") or database.get_config("mb_username")
+    account_number = gateway_db.get_config("mb_account_number") or gateway_db.get_config("mb_username")
     
     # Attempt to fetch owner name from active client session
     account_name = "Chưa kết nối Bank"
-    username = database.get_config("mb_username")
+    username = gateway_db.get_config("mb_username")
     if username and username in bank_clients:
         try:
             client = bank_clients[username]
@@ -251,12 +251,12 @@ async def checkout_get(
 @app.post("/admin/config")
 async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get_current_user)):
     try:
-        database.set_config("mb_username", cfg.mb_username)
-        database.set_config("mb_password", cfg.mb_password)
-        database.set_config("mb_account_number", cfg.mb_account_number or "")
-        database.set_config("default_callback_url", cfg.default_callback_url or "")
-        database.set_config("callback_secret", cfg.callback_secret)
-        database.set_config("admin_password", cfg.admin_password)
+        gateway_db.set_config("mb_username", cfg.mb_username)
+        gateway_db.set_config("mb_password", cfg.mb_password)
+        gateway_db.set_config("mb_account_number", cfg.mb_account_number or "")
+        gateway_db.set_config("default_callback_url", cfg.default_callback_url or "")
+        gateway_db.set_config("callback_secret", cfg.callback_secret)
+        gateway_db.set_config("admin_password", cfg.admin_password)
         
         # Invalidate cached client to force refresh with new credentials
         if cfg.mb_username in bank_clients:
@@ -271,8 +271,8 @@ async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get
 async def get_mb_client() -> "MBBank":
     """Helper to instantiate and return cached/new MBBank client."""
     from mbbank import MBBank
-    username = database.get_config("mb_username")
-    password = database.get_config("mb_password")
+    username = gateway_db.get_config("mb_username")
+    password = gateway_db.get_config("mb_password")
     
     if not username or not password:
         raise HTTPException(status_code=400, detail="Vui lòng cấu hình tài khoản MB Bank trong Dashboard Admin trước.")
@@ -323,7 +323,7 @@ async def scan_now_endpoint(authenticated: bool = Depends(get_current_user)):
 async def delete_pending_payment_endpoint(payment_id: str, authenticated: bool = Depends(get_current_user)):
     """Deletes a pending payment from the queue."""
     try:
-        database.delete_pending_payment(payment_id)
+        gateway_db.delete_pending_payment(payment_id)
         return {"success": True}
     except Exception as e:
         logger.error(f"Error deleting pending payment {payment_id}: {e}")
@@ -333,7 +333,7 @@ async def delete_pending_payment_endpoint(payment_id: str, authenticated: bool =
 async def delete_all_pending_payments_endpoint(authenticated: bool = Depends(get_current_user)):
     """Deletes all pending payments from the queue."""
     try:
-        database.delete_all_pending_payments()
+        gateway_db.delete_all_pending_payments()
         return {"success": True}
     except Exception as e:
         logger.error(f"Error deleting all pending payments: {e}")
@@ -342,7 +342,7 @@ async def delete_all_pending_payments_endpoint(authenticated: bool = Depends(get
 @app.get("/api/cron")
 async def cron_trigger(secret: Optional[str] = None, request: Request = None):
     """Secure endpoint for Vercel Cron or other automated pollers to trigger check."""
-    expected_secret = os.environ.get("CRON_SECRET") or database.get_config("callback_secret")
+    expected_secret = os.environ.get("CRON_SECRET") or gateway_db.get_config("callback_secret")
     auth_header = request.headers.get("Authorization")
     header_token = None
     if auth_header and auth_header.startswith("Bearer "):
@@ -376,7 +376,7 @@ async def register_qr_payment(req: QRRequest):
         payment_id = str(uuid.uuid4())
         
         # Save to database
-        database.add_pending_payment(
+        gateway_db.add_pending_payment(
             payment_id=payment_id,
             reference_id=req.reference_id,
             amount=req.amount,
@@ -407,7 +407,7 @@ async def check_payment_status(reference_id: str, force: bool = False):
     await perform_transaction_check(force=force)
     
     # Query database to see if status updated
-    status = database.get_pending_payment_status(reference_id)
+    status = gateway_db.get_pending_payment_status(reference_id)
     
     if not status:
         return {"status": "not_found", "message": "Không tìm thấy yêu cầu thanh toán với reference_id này."}
@@ -422,10 +422,10 @@ async def check_payment_status(reference_id: str, force: bool = False):
 async def perform_transaction_check(force: bool = False) -> int:
     """
     Core engine function.
-    Fetches recent transactions from MB Bank and matches against pending_payments in the database.
+    Fetches recent transactions from MB Bank and matches against pending_payments in the gateway_db.
     Sends callback webhooks to registered endpoints for matched items.
     """
-    username = database.get_config("mb_username")
+    username = gateway_db.get_config("mb_username")
     if not username:
         logger.warning("MB Bank username not configured. Skipping scan.")
         return 0
@@ -436,7 +436,7 @@ async def perform_transaction_check(force: bool = False) -> int:
         from mbbank.modals.transaction_history import Transaction
 
         # Check cache validity (60 seconds)
-        last_scan_str = database.get_config("last_bank_scan_time")
+        last_scan_str = gateway_db.get_config("last_bank_scan_time")
         cache_valid = False
         txn_list = []
         
@@ -446,7 +446,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                 if time.time() - last_scan_time < 60.0:
                     cache_valid = True
                     logger.info("Using cached bank transactions (cache age < 60s)")
-                    cache_data = database.get_config("bank_transactions_cache")
+                    cache_data = gateway_db.get_config("bank_transactions_cache")
                     if cache_data:
                         txn_list_raw = json.loads(cache_data)
                         txn_list = [Transaction.model_validate(t) for t in txn_list_raw]
@@ -464,7 +464,7 @@ async def perform_transaction_check(force: bool = False) -> int:
             logger.info(f"Cache expired/invalid. Scanning MB Bank transactions from {from_date} to {to_date}...")
             
             # Call bank API in threadpool
-            account_no = database.get_config("mb_account_number") or username
+            account_no = gateway_db.get_config("mb_account_number") or username
             history = await asyncio.to_thread(
                 run_in_thread,
                 client.getTransactionAccountHistory,
@@ -479,16 +479,16 @@ async def perform_transaction_check(force: bool = False) -> int:
             # Save to cache in database (Supabase)
             try:
                 txn_list_dicts = [t.model_dump() for t in txn_list]
-                database.set_config("bank_transactions_cache", json.dumps(txn_list_dicts))
-                database.set_config("last_bank_scan_time", str(time.time()))
+                gateway_db.set_config("bank_transactions_cache", json.dumps(txn_list_dicts))
+                gateway_db.set_config("last_bank_scan_time", str(time.time()))
                 logger.info("Saved transactions to database cache.")
             except Exception as e:
                 logger.error(f"Error saving transaction cache to database: {e}")
         
         # Fetch pending payments
-        pending = [p for p in database.get_pending_payments() if p["status"] == "pending"]
+        pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
         if not pending:
-            logger.info("No pending payments in database. Nothing to check.")
+            logger.info("No pending payments in gateway_db. Nothing to check.")
             return 0
             
         processed_count = 0
@@ -503,7 +503,7 @@ async def perform_transaction_check(force: bool = False) -> int:
             desc = (getattr(txn, "description", "") or getattr(txn, "addDescription", "") or "").upper().strip()
             
             # Check if this transaction has already been processed
-            if database.is_transaction_processed(trans_no):
+            if gateway_db.is_transaction_processed(trans_no):
                 continue
                 
             # Try to match with pending payments
@@ -522,7 +522,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                     logger.info(f"MATCH FOUND: Trans {trans_no} matches pending payment {pay['id']}!")
                     
                     # Mark transaction as processed to prevent double callback
-                    success = database.add_processed_transaction(
+                    success = gateway_db.add_processed_transaction(
                         trans_no=trans_no,
                         amount=credit_amount,
                         details=getattr(txn, "description", "") or getattr(txn, "addDescription", "") or "",
@@ -531,10 +531,10 @@ async def perform_transaction_check(force: bool = False) -> int:
                     
                     if success:
                         # Update payment status
-                        database.update_pending_payment_status(pay['id'], 'completed')
+                        gateway_db.update_pending_payment_status(pay['id'], 'completed')
                         
                         # Trigger webhook callback in background
-                        callback_url = pay['callback_url'] or database.get_config("default_callback_url")
+                        callback_url = pay['callback_url'] or gateway_db.get_config("default_callback_url")
                         if callback_url:
                             asyncio.create_task(send_callback_webhook(callback_url, pay, txn))
                             
@@ -548,7 +548,7 @@ async def perform_transaction_check(force: bool = False) -> int:
 
 async def send_callback_webhook(url: str, payment: dict, transaction: any):
     """Sends a signed HTTP POST callback to the client website."""
-    secret = database.get_config("callback_secret", "super-secret-callback-token")
+    secret = gateway_db.get_config("callback_secret", "super-secret-callback-token")
     
     payload = {
         "status": "success",
