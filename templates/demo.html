@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Thanh Toán VietQR - MB Bank Webhook</title>
+    <meta name="description" content="Trang mô phỏng quét mã QR thanh toán và đối soát giao dịch tự động.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.7);
+            --border-color: rgba(0, 0, 0, 0.08);
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --accent-teal: #0ea5e9;
+            --accent-blue: #2563eb;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.1) 0%, transparent 50%);
+            position: relative;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 40px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 40px;
+            transition: all 0.5s ease;
+        }
+
+        @media (max-width: 768px) {
+            .glass-card {
+                grid-template-columns: 1fr;
+                padding: 24px;
+                gap: 32px;
+            }
+        }
+
+        /* Form Area */
+        .form-section {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .form-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-teal);
+            background: #ffffff;
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.15);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
+            border: none;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn:disabled {
+            background: #e2e8f0;
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* QR Code Area */
+        .qr-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .qr-box {
+            width: 250px;
+            height: 250px;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #f1f5f9;
+        }
+
+        .qr-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Scan Glow Animation */
+        .qr-box::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, transparent, var(--accent-teal), transparent);
+            top: 0;
+            left: 0;
+            animation: scan 3s infinite linear;
+            box-shadow: 0 0 10px var(--accent-teal);
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 100%; }
+            100% { top: 0%; }
+        }
+
+        .payment-info {
+            width: 100%;
+            margin-top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Status indicators */
+        .status-banner {
+            margin-top: 20px;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .status-pending {
+            background: rgba(245, 158, 11, 0.08);
+            color: var(--warning-color);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+            animation: pulseSuccess 2s infinite alternate;
+        }
+
+        @keyframes pulseSuccess {
+            0% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.05); }
+            100% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.2); }
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .countdown-timer {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin-top: 12px;
+        }
+
+        .btn-check-manual {
+            margin-top: 16px;
+            background: rgba(0, 0, 0, 0.03);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            box-shadow: none;
+        }
+
+        .btn-check-manual:hover {
+            background: rgba(0, 0, 0, 0.06);
+            border-color: var(--accent-teal);
+        }
+
+        /* Success Animation Modal */
+        .success-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .success-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .checkmark-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.08);
+            border: 3px solid var(--success-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: var(--success-color);
+            margin-bottom: 24px;
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.15);
+            animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .success-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--success-color);
+            margin-bottom: 8px;
+        }
+
+        .back-link {
+            margin-top: 40px;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 0.95rem;
+            border-bottom: 1px dashed var(--accent-blue);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="logo" id="demo-title">VietQR Payment Simulator</h1>
+            <p class="subtitle">Môi trường kiểm thử thanh toán quét mã VietQR và đối soát thời gian thực</p>
+        </div>
+
+        <div class="glass-card" id="demo-card" style="position: relative;">
+            <!-- Success Overlay Modal -->
+            <div class="success-overlay" id="success-overlay">
+                <div class="checkmark-circle">✓</div>
+                <h2 class="success-title">Thanh Toán Thành Công!</h2>
+                <p class="subtitle" style="margin-bottom: 8px;" id="success-amount-text">Số tiền nhận được: 0đ</p>
+                <p class="subtitle" id="success-ref-text">Mã tham chiếu: ORDER_XXX</p>
+                <span class="back-link" onclick="resetDemo()">Tạo Giao Dịch Mới</span>
+            </div>
+
+            <!-- Left column: Creation form -->
+            <div class="form-section" id="form-container">
+                <h2 class="form-title">🛒 Tạo Đơn Hàng Mới</h2>
+                
+                <div class="form-group">
+                    <label class="form-label" for="amount">Số tiền thanh toán (VND)</label>
+                    <input 
+                        type="number" 
+                        id="amount" 
+                        class="form-input" 
+                        placeholder="Ví dụ: 10000, 50000" 
+                        value="10000"
+                        min="1000"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="order-content">Tên Người Chuyển / Nội dung</label>
+                    <input 
+                        type="text" 
+                        id="order-content" 
+                        class="form-input" 
+                        placeholder="Ví dụ: PaidLunch Cuong" 
+                        value="PaidLunch "
+                    >
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">
+                        * Gateway sẽ quét giao dịch MB Bank khớp chính xác với nội dung này.
+                    </span>
+                </div>
+
+                <button class="btn" onclick="generatePayment()" id="btn-create-payment">
+                    💳 Tạo QR Chuyển Khoản
+                </button>
+            </div>
+
+            <!-- Right column: Generated QR code (disabled state initially) -->
+            <div class="qr-section" id="qr-container" style="opacity: 0.3; pointer-events: none;">
+                <div class="qr-box" id="qr-box">
+                    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23fff'/><text x='50' y='55' font-family='sans-serif' font-size='10' text-anchor='middle' fill='%23ccc'>Chưa tạo QR</text></svg>" alt="VietQR" class="qr-image" id="vietqr-img">
+                </div>
+
+                <div class="countdown-timer" id="timer">05:00</div>
+
+                <div class="status-banner status-pending" id="status-banner">
+                    <span class="spinner" id="status-spinner" style="display: none;"></span>
+                    <span id="status-text">Đang chờ tạo giao dịch...</span>
+                </div>
+
+                <div class="payment-info">
+                    <div class="info-row">
+                        <span class="info-label">Ngân hàng</span>
+                        <span class="info-value">MB Bank</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Số tài khoản</span>
+                        <span class="info-value" id="info-account-no">{{ account_number or 'Chưa cấu hình' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Chủ tài khoản</span>
+                        <span class="info-value" id="info-account-name">{{ account_name or 'Chưa cấu hình' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Nội dung CK</span>
+                        <span class="info-value" id="info-transfer-content">-</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-check-manual" onclick="checkPayment()" id="btn-check-manual">
+                    🔍 Kiểm tra đã chuyển khoản chưa
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pollingInterval = null;
+        let countdownInterval = null;
+        let currentRefId = null;
+        let currentAmount = 0;
+        let timerSeconds = 300;
+
+        // Auto append random code to order content to ensure uniqueness
+        document.addEventListener("DOMContentLoaded", () => {
+            const contentInput = document.getElementById("order-content");
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            contentInput.value = `PaidLunch user${randomCode}`;
+        });
+
+        // Web Audio API Sound Synthesizer
+        function playSuccessSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                // Play first note C5
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+                
+                // Play second note E5 after 150ms
+                setTimeout(() => {
+                    osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                    setTimeout(() => osc.stop(), 360);
+                }, 150);
+            } catch (e) {
+                console.error("Browser audio blocked or unsupported:", e);
+            }
+        }
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
+        }
+
+        // Generate VietQR and register on Gateway
+        async function generatePayment() {
+            const amountInput = document.getElementById("amount");
+            const contentInput = document.getElementById("order-content");
+            const accountNo = document.getElementById("info-account-no").innerText;
+            const accountName = document.getElementById("info-account-name").innerText;
+
+            const amount = parseInt(amountInput.value);
+            const content = contentInput.value.trim().toUpperCase();
+
+            if (!amount || amount < 1000) {
+                alert("Vui lòng nhập số tiền hợp lệ (tối thiểu 1,000 VND)");
+                return;
+            }
+            if (!content) {
+                alert("Vui lòng nhập nội dung chuyển khoản!");
+                return;
+            }
+            if (accountNo === 'Chưa cấu hình') {
+                alert("Vui lòng cấu hình tài khoản MB Bank trong admin dashboard trước!");
+                return;
+            }
+
+            // Lock creation form, enable QR container
+            document.getElementById("btn-create-payment").disabled = true;
+            document.getElementById("amount").disabled = true;
+            document.getElementById("order-content").disabled = true;
+            
+            const qrContainer = document.getElementById("qr-container");
+            qrContainer.style.opacity = "1";
+            qrContainer.style.pointerEvents = "auto";
+
+            // Generate unique reference ID
+            currentRefId = "REF" + Date.now().toString().slice(-8);
+            currentAmount = amount;
+
+            // Update details
+            document.getElementById("info-transfer-content").innerText = content;
+
+            // Set VietQR Image Source
+            // Format: https://img.vietqr.io/image/<BANK_ID>-<ACCOUNT_NO>-<TEMPLATE>.png?amount=<AMOUNT>&addInfo=<CONTENT>
+            const vietqrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact.png?amount=${amount}&addInfo=${encodeURIComponent(content)}`;
+            document.getElementById("vietqr-img").src = vietqrUrl;
+
+            // Register QR session with our backend gateway
+            document.getElementById("status-text").innerText = "Đang kết nối cổng thanh toán...";
+            document.getElementById("status-spinner").style.display = "inline-block";
+
+            try {
+                const res = await fetch("/api/webhook/check-qr", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        reference_id: currentRefId,
+                        amount: amount,
+                        content: content
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById("status-text").innerText = "Đang quét giao dịch...";
+                    startPolling();
+                    startCountdown();
+                } else {
+                    document.getElementById("status-text").innerText = "Đăng ký thanh toán lỗi.";
+                    document.getElementById("status-spinner").style.display = "none";
+                }
+            } catch (err) {
+                document.getElementById("status-text").innerText = "Lỗi kết nối Server Gateway.";
+                document.getElementById("status-spinner").style.display = "none";
+            }
+        }
+
+        // Poll Payment Status
+        function startPolling() {
+            if (pollingInterval) clearInterval(pollingInterval);
+            
+            // Poll every 4 seconds
+            pollingInterval = setInterval(checkPayment, 4000);
+        }
+
+        // Check Payment Status once
+        async function checkPayment() {
+            if (!currentRefId) return;
+
+            const checkBtn = document.getElementById("btn-check-manual");
+            checkBtn.disabled = true;
+
+            try {
+                const res = await fetch(`/api/check-payment/${currentRefId}`);
+                const data = await res.json();
+
+                if (data.status === "completed") {
+                    handleSuccess();
+                } else if (data.status === "pending") {
+                    console.log("Payment still pending...");
+                }
+            } catch (err) {
+                console.error("Error polling payment status:", err);
+            } finally {
+                checkBtn.disabled = false;
+            }
+        }
+
+        // Success handling
+        function handleSuccess() {
+            // Stop polling and timer
+            clearInterval(pollingInterval);
+            clearInterval(countdownInterval);
+
+            // Play successful beep audio
+            playSuccessSound();
+
+            // Set overlay values
+            document.getElementById("success-amount-text").innerText = `Số tiền nhận được: ${formatCurrency(currentAmount)}`;
+            document.getElementById("success-ref-text").innerText = `Mã tham chiếu: ${currentRefId}`;
+            
+            // Show Success Overlay Modal
+            document.getElementById("success-overlay").classList.add("show");
+        }
+
+        // Countdown Timer
+        function startCountdown() {
+            timerSeconds = 300;
+            const timerDiv = document.getElementById("timer");
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            countdownInterval = setInterval(() => {
+                timerSeconds--;
+                if (timerSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    clearInterval(pollingInterval);
+                    timerDiv.innerText = "Hết hạn";
+                    document.getElementById("status-banner").className = "status-banner status-expired";
+                    document.getElementById("status-banner").style.background = "rgba(239, 68, 68, 0.1)";
+                    document.getElementById("status-banner").style.color = "var(--error-color)";
+                    document.getElementById("status-text").innerText = "Giao dịch đã hết hạn!";
+                    document.getElementById("status-spinner").style.display = "none";
+                    return;
+                }
+
+                const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+                const secs = String(timerSeconds % 60).padStart(2, '0');
+                timerDiv.innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // Reset and generate a new QR check
+        function resetDemo() {
+            clearInterval(pollingInterval);
+            clearInterval(countdownInterval);
+
+            document.getElementById("success-overlay").classList.remove("show");
+            document.getElementById("btn-create-payment").disabled = false;
+            document.getElementById("amount").disabled = false;
+            document.getElementById("order-content").disabled = false;
+
+            const qrContainer = document.getElementById("qr-container");
+            qrContainer.style.opacity = "0.3";
+            qrContainer.style.pointerEvents = "none";
+
+            document.getElementById("vietqr-img").src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23fff'/><text x='50' y='55' font-family='sans-serif' font-size='10' text-anchor='middle' fill='%23ccc'>Chưa tạo QR</text></svg>";
+            document.getElementById("timer").innerText = "05:00";
+            
+            document.getElementById("status-banner").className = "status-banner status-pending";
+            document.getElementById("status-banner").style.background = "";
+            document.getElementById("status-banner").style.color = "";
+            document.getElementById("status-text").innerText = "Đang chờ tạo giao dịch...";
+            document.getElementById("status-spinner").style.display = "none";
+            document.getElementById("info-transfer-content").innerText = "-";
+
+            // Generate new random code for next content
+            const contentInput = document.getElementById("order-content");
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            contentInput.value = `PaidLunch user${randomCode}`;
+        }
+    </script>
+</body>
+</html>

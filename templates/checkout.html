@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng Thanh Toán VietQR - KOS</title>
+    <meta name="description" content="Trang thanh toán VietQR an toàn và tiện lợi qua cổng MB Bank.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(0, 0, 0, 0.06);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --accent-cyan: #0891b2;
+            --accent-indigo: #4f46e5;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image:
+                radial-gradient(circle at 15% 15%, rgba(6, 182, 212, 0.07) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.07) 0%, transparent 45%);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.15);
+        }
+
+        .logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #0f172a 30%, #312e81 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .checkout-grid {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.4s ease;
+        }
+
+        /* Top side: Order summary */
+        .order-side {
+            display: none;
+            padding: 32px 32px 24px 32px;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(248, 250, 252, 0.5);
+            text-align: center;
+        }
+
+        .order-details-top {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .merchant-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-cyan);
+        }
+
+        .order-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .amount-display {
+            margin: 8px 0;
+            padding: 16px;
+            background: #f1f5f9;
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.02);
+        }
+
+        .amount-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .amount-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0f172a 50%, #475569 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Right Side: QR code & details stacked */
+        .qr-side {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .qr-wrapper {
+            position: relative;
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+            width: 240px;
+            height: 240px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .qr-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Interactive laser scanner line */
+        .qr-wrapper::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, transparent, var(--accent-cyan), transparent);
+            top: 0;
+            left: 0;
+            animation: scan 4s infinite linear;
+            box-shadow: 0 0 8px var(--accent-cyan);
+        }
+
+        @keyframes scan {
+            0% {
+                top: 0%;
+                opacity: 0.3;
+            }
+
+            50% {
+                top: 100%;
+                opacity: 1;
+            }
+
+            100% {
+                top: 0%;
+                opacity: 0.3;
+            }
+        }
+
+        .instruction-text {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            max-width: 320px;
+        }
+
+        /* Info List Box */
+        .info-list {
+            width: 100%;
+            background: #f8fafc;
+            border-radius: 18px;
+            border: 1px solid rgba(0, 0, 0, 0.03);
+            padding: 4px 16px;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 0.88rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-lbl {
+            color: var(--text-secondary);
+        }
+
+        .info-val-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-val {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .copy-btn {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .copy-btn:hover {
+            background: #f1f5f9;
+            color: var(--text-primary);
+            border-color: #94a3b8;
+        }
+
+        .copy-btn.copied {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.2);
+            color: var(--success-color);
+        }
+
+        /* Status Indicator Banner */
+        .status-badge {
+            display: none !important;
+        }
+
+        .status-badge.success {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.15);
+            color: var(--success-color);
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.15);
+            color: var(--error-color);
+        }
+
+        .spinner-pulse {
+            width: 10px;
+            height: 10px;
+            background-color: currentColor;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse-glow 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                transform: scale(0.85);
+                opacity: 0.5;
+                box-shadow: 0 0 0 0 currentColor;
+            }
+
+            100% {
+                transform: scale(1.1);
+                opacity: 1;
+                box-shadow: 0 0 8px 2px currentColor;
+            }
+        }
+
+        /* Recheck & Cancel Buttons styled at bottom */
+        .btn-recheck {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(6, 182, 212, 0.05);
+            border: 1px solid rgba(6, 182, 212, 0.15);
+            border-radius: 12px;
+            color: var(--accent-cyan);
+            padding: 14px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 12px;
+        }
+
+        .btn-recheck:hover {
+            background: rgba(6, 182, 212, 0.1);
+            border-color: rgba(6, 182, 212, 0.25);
+        }
+
+        .btn-recheck:disabled {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .btn-cancel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+            border-radius: 12px;
+            color: #ef4444;
+            padding: 14px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            margin-top: 16px;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        /* Success Overlay Screen */
+        .success-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .success-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .checkmark-wrapper {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.08);
+            border: 4px solid var(--success-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.2);
+            margin-bottom: 24px;
+            animation: bounceIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes bounceIn {
+            0% {
+                transform: scale(0.3);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            70% {
+                transform: scale(0.9);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-heading {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .success-desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 32px;
+            text-align: center;
+            max-width: 320px;
+            line-height: 1.5;
+        }
+
+        .redirect-progress-bar {
+            width: 200px;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .redirect-progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent-cyan), var(--success-color));
+            width: 0%;
+            transition: width 3s linear;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ffffff;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Confetti canvas */
+        #confetti-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 99;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-container">
+                <span class="logo-badge">VietQR</span>
+                <span class="logo-text">KOS</span>
+            </div>
+        </div>
+
+        <!-- Main Checkout Box (Single Column Grid Stacked) -->
+        <div class="checkout-grid" id="checkout-card" style="position: relative;">
+
+            <!-- Confetti Canvas -->
+            <canvas id="confetti-canvas"></canvas>
+
+            <!-- Success Screen Overlay -->
+            <div class="success-overlay" id="success-screen">
+                <div class="checkmark-wrapper">
+                    <!-- SVG Animated Checkmark -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                        stroke="var(--success-color)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <h2 class="success-heading">Thanh toán thành công!</h2>
+                <p class="success-desc">Giao dịch đã được xác nhận. Chúng tôi đang đưa bạn quay trở lại website ứng
+                    dụng...</p>
+                <div class="redirect-progress-bar">
+                    <div class="redirect-progress-fill" id="redirect-fill"></div>
+                </div>
+            </div>
+
+            <!-- Top Section: Order details -->
+            <div class="order-side">
+                <div class="order-details-top">
+                    <span class="merchant-name">Cửa hàng đối tác</span>
+                    <h2 class="order-title">Đơn hàng #{{ orderCode if orderCode else (orderId[:8] if orderId else
+                        'XXXXXX') }}</h2>
+
+                    <div class="amount-display">
+                        <div class="amount-label">Số tiền cần thanh toán</div>
+                        <div class="amount-val" id="amount-text">0đ</div>
+                    </div>
+
+                    <!-- Countdown Timer (Hidden from user display) -->
+                    <div class="timer-container" style="display: none;">
+                        <svg class="timer-svg">
+                            <circle class="timer-bg" cx="24" cy="24" r="20" />
+                            <circle class="timer-bar" id="timer-bar" cx="24" cy="24" r="20" />
+                        </svg>
+                        <div class="timer-text-group">
+                            <span class="timer-label">Mã QR hết hạn sau</span>
+                            <span class="timer-time" id="timer-text">03:00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section: VietQR image, info, and buttons -->
+            <div class="qr-side">
+                <!-- QR Code Box with scanning effect -->
+                <div class="qr-wrapper">
+                    <img src="" alt="VietQR MB Bank" class="qr-img" id="vietqr-image">
+                </div>
+
+                <p class="instruction-text">
+                    Mở ứng dụng ngân hàng hoặc ví điện tử để quét mã thanh toán.
+                </p>
+
+                <!-- Copyable details list -->
+                <div class="info-list">
+                    <div class="info-row">
+                        <span class="info-lbl">Ngân hàng</span>
+                        <span class="info-val">MB Bank (Quân Đội)</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-lbl">Chủ tài khoản</span>
+                        <span class="info-val" id="val-name">{{ account_name or 'Chưa cấu hình' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-lbl">Số tài khoản</span>
+                        <div class="info-val-container">
+                            <span class="info-val" id="val-account">{{ account_number }}</span>
+                            <button class="copy-btn" onclick="copyText('val-account', 'Số tài khoản')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-lbl">Số tiền</span>
+                        <div class="info-val-container">
+                            <span class="info-val" id="val-amount-raw">{{ amount }}</span>
+                            <button class="copy-btn" onclick="copyText('val-amount-raw', 'Số tiền')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-lbl">Nội dung CK</span>
+                        <div class="info-val-container">
+                            <span class="info-val" id="val-desc">{{ content }}</span>
+                            <button class="copy-btn" onclick="copyText('val-desc', 'Nội dung chuyển khoản')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Banner -->
+                <div class="status-badge" id="status-banner">
+                    <span class="spinner-pulse"></span>
+                    <span id="status-text">Đang quét giao dịch ngân hàng...</span>
+                </div>
+
+                <!-- Recheck Button Container (Disabled initially, shows up after expiration) -->
+                <div id="recheck-container" style="display: none; width: 100%;">
+                    <button class="btn-recheck" id="btn-recheck" onclick="manualRecheck()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                        </svg>
+                        <span id="recheck-btn-text">Kiểm tra lại giao dịch</span>
+                    </button>
+                </div>
+
+                <!-- Cancel Button at bottom -->
+                <button class="btn-cancel" onclick="cancelPayment()" style="width: 100%;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="margin-right: 6px;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    Huỷ giao dịch này
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Toast with SVG icon -->
+    <div class="toast" id="toast">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981"
+            stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span id="toast-text">Đã sao chép vào clipboard!</span>
+    </div>
+
+    <script>
+        // Parameters passed from template context
+        const amount = parseFloat("{{ amount }}");
+        const content = "{{ content }}";
+        const callbackUrl = "{{ callback }}";
+        const cancelUrl = "{{ cancel_url }}";
+        const orderCode = "{{ orderCode }}";
+        const orderId = "{{ orderId }}";
+        const accountNo = "{{ account_number }}";
+
+        let pollingInterval = null;
+        let timerInterval = null;
+        let secondsRemaining = 180; // 3 minutes default
+        const totalDuration = 180;
+
+        // SVG Constants for swap
+        const COPY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+        const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Set formatted currency
+            document.getElementById("amount-text").innerText = formatCurrency(amount);
+            document.getElementById("val-amount-raw").innerText = formatCurrency(amount);
+
+            // Construct and display VietQR compact image
+            const encodedContent = encodeURIComponent(content);
+            const qrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact.png?amount=${amount}&addInfo=${encodedContent}`;
+            document.getElementById("vietqr-image").src = qrUrl;
+
+            // Start countdown timer
+            startTimer();
+
+            // Start polling status after 15 seconds delay (user needs time to scan and transfer)
+            setTimeout(startPolling, 15000);
+        });
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
+        }
+
+        // Copy detail helper
+        function copyText(elementId, labelName) {
+            let textToCopy = document.getElementById(elementId).innerText;
+
+            // Clean up currency symbols for numbers if needed
+            if (elementId === 'val-amount-raw') {
+                textToCopy = String(amount);
+            }
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast(`Đã sao chép ${labelName.toLowerCase()}`);
+
+                // Active status on button: target the copy button in its container
+                const container = document.getElementById(elementId).closest('.info-val-container');
+                const btn = container ? container.querySelector('.copy-btn') : null;
+
+                if (btn) {
+                    btn.classList.add('copied');
+                    btn.innerHTML = CHECK_SVG;
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.innerHTML = COPY_SVG;
+                    }, 2000);
+                }
+            }).catch(err => {
+                console.error('Không thể sao chép văn bản: ', err);
+            });
+        }
+
+        // Floating toast helper
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            document.getElementById("toast-text").innerText = message;
+            toast.classList.add("show");
+
+            setTimeout(() => {
+                toast.classList.remove("show");
+            }, 2500);
+        }
+
+        // Circular Timer Function (runs in background, keeps track of the 3-minute limit)
+        function startTimer() {
+            const timerText = document.getElementById("timer-text");
+            const timerBar = document.getElementById("timer-bar");
+            const circumference = 2 * Math.PI * 20; // r = 20
+
+            timerInterval = setInterval(() => {
+                secondsRemaining--;
+
+                // Show manual check button after 1 minute has elapsed (secondsRemaining <= 120)
+                if (secondsRemaining <= 120) {
+                    const recheckCont = document.getElementById("recheck-container");
+                    if (recheckCont) recheckCont.style.display = "block";
+                }
+
+                if (secondsRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    clearInterval(pollingInterval);
+                    timerText.innerText = "Hết hạn";
+                    timerBar.style.strokeDashoffset = circumference;
+
+                    // Mark expired
+                    const banner = document.getElementById("status-banner");
+                    banner.className = "status-badge error";
+                    document.getElementById("status-text").innerText = "Giao dịch đã hết hạn!";
+                    showToast("Đơn hàng đã hết hạn thanh toán!");
+
+                    // Show recheck button container at bottom
+                    document.getElementById("recheck-container").style.display = "block";
+                    return;
+                }
+
+                // Format time string MM:SS
+                const minutes = String(Math.floor(secondsRemaining / 60)).padStart(2, '0');
+                const seconds = String(secondsRemaining % 60).padStart(2, '0');
+                timerText.innerText = `${minutes}:${seconds}`;
+
+                // Update circular progress offset
+                const offset = circumference - (secondsRemaining / totalDuration) * circumference;
+                timerBar.style.strokeDashoffset = offset;
+
+                // Color shift timer based on remaining time
+                if (secondsRemaining < 120) { // < 2 mins left
+                    timerBar.style.stroke = "var(--error-color)";
+                } else if (secondsRemaining < 300) { // < 5 mins left
+                    timerBar.style.stroke = "var(--warning-color)";
+                }
+            }, 1000);
+        }
+
+        // Web Audio API success Sound Synthesizer
+        function playSuccessSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                osc.type = 'sine';
+
+                osc.frequency.setValueAtTime(523.25, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.exponentialRampToValueAtTime(0.12, now + 0.05);
+
+                osc.frequency.setValueAtTime(659.25, now + 0.12);
+                osc.frequency.setValueAtTime(783.99, now + 0.24);
+
+                osc.frequency.setValueAtTime(1046.50, now + 0.36);
+                gain.gain.setValueAtTime(0.12, now + 0.36);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+                osc.start(now);
+                osc.stop(now + 0.95);
+            } catch (e) {
+                console.warn("Browser audio context blocked or unsupported:", e);
+            }
+        }
+
+        // Webhook status polling (checked every 15 seconds as requested)
+        function startPolling() {
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(checkPaymentStatus, 15000); // Poll every 15 seconds
+        }
+
+        async function checkPaymentStatus() {
+            if (!orderId) return;
+
+            try {
+                const res = await fetch(`/api/check-payment/${orderId}`);
+                if (!res.ok) throw new Error("Network status invalid");
+
+                const data = await res.json();
+                if (data.status === "completed") {
+                    handlePaymentSuccess();
+                }
+            } catch (err) {
+                console.error("Lỗi khi kiểm tra trạng thái thanh toán:", err);
+            }
+        }
+
+        // Success state handler
+        function handlePaymentSuccess() {
+            clearInterval(pollingInterval);
+            clearInterval(timerInterval);
+
+            // Play synthesized success melody
+            playSuccessSound();
+
+            // Run Confetti effect
+            startConfetti();
+
+            // Success State CSS adjustments
+            const banner = document.getElementById("status-banner");
+            if (banner) banner.className = "status-badge success";
+            document.getElementById("status-text").innerText = "Đã xác nhận thanh toán!";
+
+            // Overlay Screen activation
+            const overlay = document.getElementById("success-screen");
+            overlay.classList.add("active");
+
+            // Fill redirect progress bar
+            const fill = document.getElementById("redirect-fill");
+            setTimeout(() => {
+                fill.style.width = "100%";
+            }, 100);
+
+            // Perform automatic browser redirect after 3 seconds
+            setTimeout(() => {
+                const redirectUrl = getRedirectUrl(callbackUrl, true);
+                window.location.href = redirectUrl;
+            }, 3000);
+        }
+
+        // Cancellation action
+        function cancelPayment() {
+            if (confirm("Bạn có chắc chắn muốn huỷ giao dịch này?")) {
+                const redirectUrl = getRedirectUrl(callbackUrl || cancelUrl, false);
+                window.location.href = redirectUrl;
+            }
+        }
+
+        // Manual Recheck with 10s cooldown
+        let recheckCooldown = 0;
+        let recheckInterval = null;
+
+        async function manualRecheck() {
+            if (recheckCooldown > 0) return;
+
+            const btn = document.getElementById("btn-recheck");
+            const btnText = document.getElementById("recheck-btn-text");
+
+            // Set status to checking
+            const banner = document.getElementById("status-banner");
+            banner.className = "status-badge"; // reset error class
+            const spinner = banner.querySelector(".spinner-pulse");
+            if (spinner) spinner.style.display = "inline-block";
+            document.getElementById("status-text").innerText = "Đang kiểm tra lại giao dịch...";
+
+            btn.disabled = true;
+
+            const useForce = secondsRemaining <= 0;
+            const url = `/api/check-payment/${orderId}` + (useForce ? '?force=true' : '');
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("Status query failed");
+
+                const data = await res.json();
+                if (data.status === "completed") {
+                    handlePaymentSuccess();
+                    return;
+                } else {
+                    showToast("Chưa tìm thấy giao dịch chuyển khoản.");
+                    if (useForce) {
+                        banner.className = "status-badge error";
+                        document.getElementById("status-text").innerText = "Giao dịch đã hết hạn!";
+                    } else {
+                        banner.className = "status-badge";
+                        document.getElementById("status-text").innerText = "Đang quét giao dịch ngân hàng...";
+                    }
+                }
+            } catch (err) {
+                console.error("Lỗi khi kiểm tra giao dịch:", err);
+                showToast("Không thể kết nối tới máy chủ.");
+                if (useForce) {
+                    banner.className = "status-badge error";
+                    document.getElementById("status-text").innerText = "Giao dịch đã hết hạn!";
+                } else {
+                    banner.className = "status-badge";
+                    document.getElementById("status-text").innerText = "Đang quét giao dịch ngân hàng...";
+                }
+            }
+
+            // Cooldown of 10s
+            recheckCooldown = 10;
+            btnText.innerText = `Kiểm tra lại (${recheckCooldown}s)`;
+
+            if (recheckInterval) clearInterval(recheckInterval);
+            recheckInterval = setInterval(() => {
+                recheckCooldown--;
+                if (recheckCooldown <= 0) {
+                    clearInterval(recheckInterval);
+                    btn.disabled = false;
+                    btnText.innerText = "Kiểm tra lại giao dịch";
+                } else {
+                    btnText.innerText = `Kiểm tra lại (${recheckCooldown}s)`;
+                }
+            }, 1000);
+        }
+
+        // Merge and resolve URL search parameters properly
+        function getRedirectUrl(base, isSuccess) {
+            if (!base) return '/';
+
+            if (!isSuccess && cancelUrl) {
+                return cancelUrl;
+            }
+
+            try {
+                const url = new URL(base);
+                if (orderId && !url.searchParams.has('orderId')) {
+                    url.searchParams.set('orderId', orderId);
+                }
+                if (orderCode && !url.searchParams.has('orderCode')) {
+                    url.searchParams.set('orderCode', orderCode);
+                }
+                if (!isSuccess) {
+                    url.searchParams.set('status', 'cancelled');
+                    url.searchParams.set('cancel', 'true');
+                }
+                return url.toString();
+            } catch (e) {
+                let connector = base.includes('?') ? '&' : '?';
+                let res = base;
+                if (orderId && !base.includes('orderId=')) {
+                    res += `${connector}orderId=${encodeURIComponent(orderId)}`;
+                    connector = '&';
+                }
+                if (orderCode && !base.includes('orderCode=')) {
+                    res += `${connector}orderCode=${encodeURIComponent(orderCode)}`;
+                    connector = '&';
+                }
+                if (!isSuccess) {
+                    res += `${connector}status=cancelled&cancel=true`;
+                }
+                return res;
+            }
+        }
+
+        // Canvas Confetti Generator (No External Library Dependency)
+        function startConfetti() {
+            const canvas = document.getElementById("confetti-canvas");
+            const ctx = canvas.getContext("2d");
+
+            canvas.width = canvas.parentElement.offsetWidth;
+            canvas.height = canvas.parentElement.offsetHeight;
+
+            const colors = ['#06b6d4', '#6366f1', '#10b981', '#f59e0b', '#ec4899'];
+            const confettiCount = 100;
+            const pieces = [];
+
+            for (let i = 0; i < confettiCount; i++) {
+                pieces.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    rotation: Math.random() * 360,
+                    rotationSpeed: Math.random() * 10 - 5,
+                    size: Math.random() * 8 + 6,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speed: Math.random() * 4 + 3,
+                    wobble: Math.random() * 2
+                });
+            }
+
+            let animationFrameId;
+
+            function updateConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                let active = false;
+                pieces.forEach(p => {
+                    p.y += p.speed;
+                    p.x += Math.sin(p.y / 20) * p.wobble;
+                    p.rotation += p.rotationSpeed;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation * Math.PI / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size / 2);
+                    ctx.restore();
+
+                    if (p.y < canvas.height) {
+                        active = true;
+                    }
+                });
+
+                if (active) {
+                    animationFrameId = requestAnimationFrame(updateConfetti);
+                }
+            }
+
+            updateConfetti();
+        }
+    </script>
+</body>
+
+</html>

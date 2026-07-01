@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Cổng Thanh Toán MB Bank Webhook</title>
+    <meta name="description" content="Quản lý cấu hình, webhook và theo dõi giao dịch thanh toán MB Bank.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-hover: rgba(0, 0, 0, 0.02);
+            --border-color: rgba(0, 0, 0, 0.08);
+            --border-focus: rgba(6, 182, 212, 0.5);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --accent-teal: #0891b2;
+            --accent-purple: #6366f1;
+            --accent-blue: #2563eb;
+            --accent-amber: #d97706;
+            --error-color: #ef4444;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.04) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+        }
+
+        /* Top Navbar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-badge {
+            background: rgba(0, 242, 254, 0.1);
+            color: var(--accent-teal);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 242, 254, 0.2);
+            text-transform: uppercase;
+        }
+
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25);
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--card-hover);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        /* Layout Grid */
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 40px auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 32px;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Dashboard Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 28px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 8px 30px rgba(15, 23, 42, 0.04);
+            height: fit-content;
+        }
+
+        .card-header {
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-teal);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .btn-toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* Tabs and Data Tables */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .tabs-header {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+            gap: 24px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            font-weight: 500;
+            padding-bottom: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .tab-btn.active {
+            color: var(--accent-teal);
+            font-weight: 600;
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--accent-teal);
+            box-shadow: 0 0 8px var(--accent-teal);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* Data list styling */
+        .data-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .data-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .data-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .data-item {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.01);
+        }
+
+        .data-item:hover {
+            background: var(--card-hover);
+            transform: translateX(2px);
+        }
+
+        .item-main {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .item-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .item-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .item-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--accent-amber);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-expired {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .item-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .item-amount {
+            font-weight: 700;
+            color: var(--accent-teal);
+            font-size: 1.1rem;
+        }
+
+        /* Console and Logs */
+        .console-container {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 16px;
+            font-family: 'Courier New', Courier, monospace;
+            height: 250px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .console-line {
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .console-line.info { color: #2563eb; }
+        .console-line.success { color: #10b981; }
+        .console-line.error { color: #ef4444; }
+        .console-line.warning { color: #d97706; }
+        .console-line.input { color: #0f172a; }
+
+        /* Toasts */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toast {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(8px);
+            border-radius: 10px;
+            padding: 14px 20px;
+            color: var(--text-primary);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            min-width: 250px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success-color); }
+        .toast.error { border-left: 4px solid var(--error-color); }
+        .toast.info { border-left: 4px solid var(--accent-blue); }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar">
+        <div class="navbar-brand">
+            <h1 class="brand-logo" id="main-title">MB BANK WEBHOOK</h1>
+            <span class="brand-badge">PRO v0.3.0</span>
+        </div>
+        <div class="navbar-actions">
+            <button class="btn btn-secondary" onclick="testMBConnection()" id="btn-test-mb">
+                <span>🔄</span> Test Kết Nối Bank
+            </button>
+            <a href="/logout" class="btn btn-danger" id="logout-link">
+                <span>🚪</span> Đăng xuất
+            </a>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Configuration Column -->
+        <section class="card" id="config-card">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">⚙️ Cấu Hình Hệ Thống</h2>
+                    <p class="card-subtitle">Thiết lập kết nối ngân hàng và webhook</p>
+                </div>
+            </div>
+
+            <form id="config-form" onsubmit="saveConfigs(event)">
+                <div class="form-group">
+                    <label class="form-label" for="mb-username">MB Bank Username</label>
+                    <input 
+                        type="text" 
+                        id="mb-username" 
+                        name="mb_username" 
+                        class="form-input" 
+                        placeholder="Số điện thoại đăng nhập app"
+                        value="{{ configs.mb_username or '' }}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="mb-password">MB Bank Password</label>
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            id="mb-password" 
+                            name="mb_password" 
+                            class="form-input" 
+                            placeholder="Mật khẩu internet banking"
+                            value="{{ configs.mb_password or '' }}"
+                            required
+                        >
+                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('mb-password')">👁️</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="mb-account-number">Số Tài Khoản Nhận Tiền</label>
+                    <input 
+                        type="text" 
+                        id="mb-account-number" 
+                        name="mb_account_number" 
+                        class="form-input" 
+                        placeholder="Để trống nếu trùng với Username"
+                        value="{{ configs.mb_account_number or '' }}"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="default-callback-url">Callback URL Mặc Định</label>
+                    <input 
+                        type="url" 
+                        id="default-callback-url" 
+                        name="default_callback_url" 
+                        class="form-input" 
+                        placeholder="https://website.com/api/payment-callback"
+                        value="{{ configs.default_callback_url or '' }}"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="callback-secret">Secret Token Webhook</label>
+                    <input 
+                        type="text" 
+                        id="callback-secret" 
+                        name="callback_secret" 
+                        class="form-input" 
+                        placeholder="Token để xác thực callback ở server nhận"
+                        value="{{ configs.callback_secret or '' }}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="admin-password">Mật Khẩu Dashboard Admin</label>
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            id="admin-password" 
+                            name="admin_password" 
+                            class="form-input" 
+                            placeholder="Thay đổi mật khẩu đăng nhập"
+                            value="{{ configs.admin_password or 'admin123' }}"
+                            required
+                        >
+                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('admin-password')">👁️</button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" id="btn-save-configs">
+                    💾 Lưu Cấu Hình
+                </button>
+            </form>
+        </section>
+
+        <!-- Transaction, Queue & Logs Column -->
+        <section class="right-column" id="tracking-section">
+            <!-- Tabs -->
+            <div class="card" style="width: 100%;">
+                <div class="tabs-header">
+                    <button class="tab-btn active" onclick="switchTab(event, 'pending-panel')">⏳ Đơn Đang Chờ</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'processed-panel')">✅ Đã Thanh Toán</button>
+                </div>
+
+                <!-- Tab 1: Pending Payments -->
+                <div id="pending-panel" class="tab-panel active">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                        <button class="btn btn-danger" style="font-size: 0.82rem; padding: 6px 12px;" onclick="deleteAllPendingPayments()">
+                            🗑️ Xoá Tất Cả Đang Chờ
+                        </button>
+                    </div>
+                    <div class="data-list" id="pending-list">
+                        {% if pending_payments %}
+                            {% for pay in pending_payments %}
+                            <div class="data-item">
+                                <div class="item-main">
+                                    <div class="item-title">🔍 Nội dung: {{ pay.content }}</div>
+                                    <div class="item-subtitle">Ref: {{ pay.reference_id }} | Tạo lúc: {{ pay.created_at }}</div>
+                                    <div class="item-subtitle" style="font-size: 0.75rem; word-break: break-all;">Callback: {{ pay.callback_url or 'Mặc định' }}</div>
+                                </div>
+                                <div class="item-right">
+                                    <div class="item-amount">+{{ "{:,.0f}".format(pay.amount) }}đ</div>
+                                    <span class="item-badge badge-{{ pay.status }}">{{ pay.status }}</span>
+                                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem; margin-top: 6px;" onclick="deletePendingPayment('{{ pay.id }}')">
+                                        🗑️ Xoá
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <span>📥</span>
+                                <span>Không có QR code nào đang chờ thanh toán.</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Tab 2: Processed Transactions -->
+                <div id="processed-panel" class="tab-panel">
+                    <div class="data-list" id="processed-list">
+                        {% if processed_transactions %}
+                            {% for tx in processed_transactions %}
+                            <div class="data-item">
+                                <div class="item-main">
+                                    <div class="item-title">💵 Mã GD: {{ tx.trans_no }}</div>
+                                    <div class="item-subtitle">Mô tả: {{ tx.details }}</div>
+                                    <div class="item-subtitle">Ngày bank: {{ tx.date }} | Check: {{ tx.processed_at }}</div>
+                                </div>
+                                <div class="item-right">
+                                    <div class="item-amount" style="color: var(--success-color)">+{{ "{:,.0f}".format(tx.amount) }}đ</div>
+                                    <span class="item-badge badge-success">Thành công</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <span>💸</span>
+                                <span>Chưa có giao dịch nào được đối soát thành công.</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diagnostics Console -->
+            <div class="card" style="width: 100%;">
+                <div class="card-header" style="margin-bottom: 12px; padding-bottom: 8px;">
+                    <div>
+                        <h2 class="card-title">🖥️ Bảng Điều Khiển Chẩn Đoán</h2>
+                        <p class="card-subtitle">Log hệ thống và kiểm tra trực tiếp</p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                    <button class="btn btn-secondary" onclick="checkRecentTransactions()" style="flex: 1; font-size: 0.8rem;" id="btn-force-check">
+                        🔍 Quét giao dịch thủ công
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearConsole()" style="font-size: 0.8rem;">
+                        🗑️ Xóa log
+                    </button>
+                </div>
+                <div class="console-container" id="diagnostic-console">
+                    <div class="console-line info">[Hệ thống] Đang tải bảng điều khiển...</div>
+                    <div class="console-line info">[Hệ thống] Trình kết nối MB Bank sẵn sàng.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast elements container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Log Helper
+        function log(message, type = 'info') {
+            const consoleBox = document.getElementById('diagnostic-console');
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            const timeStr = new Date().toLocaleTimeString('vi-VN');
+            line.innerText = `[${timeStr}] ${message}`;
+            consoleBox.appendChild(line);
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('diagnostic-console').innerHTML = '<div class="console-line info">[Hệ thống] Log đã được làm sạch.</div>';
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+
+            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Switch Tabs
+        function switchTab(evt, tabId) {
+            const panels = document.querySelectorAll('.tab-panel');
+            panels.forEach(p => p.classList.remove('active'));
+            
+            const tabs = document.querySelectorAll('.tab-btn');
+            tabs.forEach(t => t.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        // Toggle Password field visibility
+        function togglePasswordVisibility(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (field.type === 'password') {
+                field.type = 'text';
+            } else {
+                field.type = 'password';
+            }
+        }
+
+        // Save Configurations
+        async function saveConfigs(e) {
+            e.preventDefault();
+            const form = document.getElementById('config-form');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            log('Đang gửi cập nhật cấu hình lên máy chủ...', 'input');
+            
+            try {
+                const res = await fetch('/admin/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    log('Cập nhật cấu hình thành công!', 'success');
+                    showToast('Đã lưu cấu hình thành công!', 'success');
+                } else {
+                    log(`Cập nhật thất bại: ${result.error}`, 'error');
+                    showToast(result.error, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi kết nối khi lưu cấu hình: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            }
+        }
+
+        // Test MB Bank connection
+        async function testMBConnection() {
+            const btn = document.getElementById('btn-test-mb');
+            btn.disabled = true;
+            log('Bắt đầu kiểm tra kết nối tài khoản MB Bank...', 'info');
+            log('Đang đăng nhập và kiểm tra số dư... (quá trình xử lý CAPTCHA có thể mất 5-15s)...', 'info');
+            
+            try {
+                const res = await fetch('/api/test-mb', { method: 'POST' });
+                const result = await res.json();
+                
+                if (result.success) {
+                    log(`Kiểm tra thành công! Chủ tài khoản: ${result.account_name}`, 'success');
+                    log(`Chi tiết tài khoản: ${JSON.stringify(result.balances)}`, 'success');
+                    showToast(`Kết nối OK! Chủ TK: ${result.account_name}`, 'success');
+                } else {
+                    log(`Lỗi kiểm tra kết nối: ${result.error}`, 'error');
+                    showToast(`Lỗi kết nối: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi hệ thống: ${err.message}`, 'error');
+                showToast('Lỗi hệ thống!', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Manual scan transactions
+        async function checkRecentTransactions() {
+            const btn = document.getElementById('btn-force-check');
+            btn.disabled = true;
+            log('Kích hoạt quét thủ công các giao dịch gần đây để đối soát...', 'info');
+            
+            try {
+                const res = await fetch('/api/scan-now', { method: 'POST' });
+                const result = await res.json();
+                
+                if (result.success) {
+                    log(`Quét hoàn tất! Xử lý thành công ${result.processed_count} giao dịch mới.`, 'success');
+                    showToast(`Quét xong! Phát hiện ${result.processed_count} GD mới.`, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    log(`Lỗi khi quét: ${result.error}`, 'error');
+                    showToast(`Lỗi đối soát: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Delete pending payment
+        async function deletePendingPayment(paymentId) {
+            if (!confirm('Bạn có chắc chắn muốn xoá yêu cầu thanh toán đang chờ này không?')) {
+                return;
+            }
+            
+            log(`Đang xoá yêu cầu thanh toán ${paymentId}...`, 'info');
+            
+            try {
+                const res = await fetch(`/api/pending-payments/${paymentId}`, {
+                    method: 'DELETE'
+                });
+                const result = await res.json();
+                
+                if (result.success) {
+                    log('Xoá yêu cầu thanh toán thành công!', 'success');
+                    showToast('Đã xoá yêu cầu thanh toán!', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    log(`Lỗi khi xoá: ${result.error}`, 'error');
+                    showToast(`Xoá thất bại: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            }
+        }
+
+        // Delete all pending payments
+        async function deleteAllPendingPayments() {
+            if (!confirm('Bạn có chắc chắn muốn xoá TẤT CẢ các yêu cầu thanh toán đang chờ không?')) {
+                return;
+            }
+            
+            log('Đang xoá tất cả yêu cầu thanh toán đang chờ...', 'info');
+            
+            try {
+                const res = await fetch('/api/pending-payments', {
+                    method: 'DELETE'
+                });
+                const result = await res.json();
+                
+                if (result.success) {
+                    log('Xoá tất cả thành công!', 'success');
+                    showToast('Đã xoá tất cả yêu cầu đang chờ!', 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    log(`Lỗi khi xoá tất cả: ${result.error}`, 'error');
+                    showToast(`Xoá thất bại: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
