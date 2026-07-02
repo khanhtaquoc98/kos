@@ -476,6 +476,26 @@
                 <div>
                     <h2 class="card-title">⚙️ Cấu Hình Hệ Thống</h2>
                     <p class="card-subtitle">Thiết lập kết nối ngân hàng và webhook</p>
+                    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+                        {% if configs.mb_system_active == 'false' %}
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background-color: #fee2e2; color: #ef4444; font-size: 0.8rem; font-weight: 600;">
+                                    ⚠️ Tự động quét: ĐÃ TẠM DỪNG DO LỖI
+                                </span>
+                                {% if configs.mb_system_error_message %}
+                                    <span style="font-size: 0.75rem; color: #ef4444;" title="{{ configs.mb_system_error_message }}">
+                                        Lỗi: {{ configs.mb_system_error_message }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div>
+                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background-color: #d1fae5; color: #10b981; font-size: 0.8rem; font-weight: 600;">
+                                    🟢 Tự động quét: ĐANG HOẠT ĐỘNG
+                                </span>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 
@@ -560,6 +580,29 @@
                         >
                         <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('admin-password')">👁️</button>
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="mb-system-active">Tự Động Quét Giao Dịch</label>
+                    <select id="mb-system-active" name="mb_system_active" class="form-input">
+                        <option value="true" {% if configs.mb_system_active != 'false' %}selected{% endif %}>Bật (Hoạt động)</option>
+                        <option value="false" {% if configs.mb_system_active == 'false' %}selected{% endif %}>Tắt (Tạm dừng)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bank-scan-interval">Tần Suất Quét MB Bank (giây)</label>
+                    <input 
+                        type="number" 
+                        id="bank-scan-interval" 
+                        name="bank_scan_interval" 
+                        class="form-input" 
+                        min="10" 
+                        max="3600"
+                        placeholder="Mặc định: 30 giây"
+                        value="{{ configs.bank_scan_interval or '30' }}"
+                        required
+                    >
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" id="btn-save-configs">

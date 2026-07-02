@@ -141,6 +141,8 @@ class ConfigUpdate(BaseModel):
     default_callback_url: Optional[str] = ""
     callback_secret: str
     admin_password: str
+    mb_system_active: Optional[str] = "true"
+    bank_scan_interval: Optional[str] = "30"
 
 # ----------------- Auth Routes -----------------
 
@@ -274,6 +276,8 @@ async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get
         gateway_db.set_config("default_callback_url", cfg.default_callback_url or "")
         gateway_db.set_config("callback_secret", cfg.callback_secret)
         gateway_db.set_config("admin_password", cfg.admin_password)
+        gateway_db.set_config("mb_system_active", cfg.mb_system_active or "true")
+        gateway_db.set_config("bank_scan_interval", cfg.bank_scan_interval or "30")
         
         # Invalidate cached client to force refresh with new credentials
         if cfg.mb_username in bank_clients:
@@ -448,6 +452,11 @@ async def perform_transaction_check(force: bool = False) -> int:
     Fetches recent transactions from MB Bank and matches against pending_payments in the gateway_db.
     Sends callback webhooks to registered endpoints for matched items.
     """
+    is_active = gateway_db.get_config("mb_system_active", "true")
+    if is_active == "false" and not force:
+        logger.info("MB Bank automatic scanning is paused due to a connection error. Skipping.")
+        return 0
+
     username = gateway_db.get_config("mb_username")
     if not username:
         logger.warning("MB Bank username not configured. Skipping scan.")
@@ -458,17 +467,23 @@ async def perform_transaction_check(force: bool = False) -> int:
         import json
         from mbbank.modals.transaction_history import Transaction
 
-        # Check cache validity (60 seconds)
+        # Check cache validity
         last_scan_str = gateway_db.get_config("last_bank_scan_time")
         cache_valid = False
         txn_list = []
         
+        try:
+            interval_str = gateway_db.get_config("bank_scan_interval", "30")
+            interval = float(interval_str)
+        except Exception:
+            interval = 30.0
+        
         if last_scan_str and not force:
             try:
                 last_scan_time = float(last_scan_str)
-                if time.time() - last_scan_time < 60.0:
+                if time.time() - last_scan_time < interval:
                     cache_valid = True
-                    logger.info("Using cached bank transactions (cache age < 60s)")
+                    logger.info(f"Using cached bank transactions (cache age < {interval}s)")
                     cache_data = gateway_db.get_config("bank_transactions_cache")
                     if cache_data:
                         txn_list_raw = json.loads(cache_data)
@@ -480,11 +495,14 @@ async def perform_transaction_check(force: bool = False) -> int:
         if not cache_valid:
             client = await get_mb_client()
             
-            # Fetch transactions only for today (ngày hôm nay từ 00:00:00)
+            # Fetch transactions only for today or last 14 days (if manual force check)
             to_date = datetime.now()
-            from_date = to_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            logger.info(f"Cache expired/invalid. Scanning MB Bank transactions from {from_date} to {to_date}...")
+            if force:
+                from_date = to_date - timedelta(days=14)
+                logger.info(f"Manual scan triggered. Scanning last 14 days from {from_date} to {to_date}...")
+            else:
+                from_date = to_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                logger.info(f"Scanning MB Bank transactions from {from_date} to {to_date}...")
             
             # Call bank API in threadpool
             account_no = gateway_db.get_config("mb_account_number") or username
@@ -499,13 +517,21 @@ async def perform_transaction_check(force: bool = False) -> int:
             except Exception as conn_err:
                 logger.warning(f"Error fetching transactions from MB: {conn_err}. Clearing session and retrying login...")
                 client.sessionId = None
-                history = await asyncio.to_thread(
-                    run_in_thread,
-                    client.getTransactionAccountHistory,
-                    accountNo=account_no,
-                    from_date=from_date,
-                    to_date=to_date
-                )
+                try:
+                    history = await asyncio.to_thread(
+                        run_in_thread,
+                        client.getTransactionAccountHistory,
+                        accountNo=account_no,
+                        from_date=from_date,
+                        to_date=to_date
+                    )
+                except Exception as final_err:
+                    logger.error(f"Final error fetching transactions from MB Bank: {final_err}.")
+                    # Set config to inactive to prevent spamming
+                    gateway_db.set_config("mb_system_active", "false")
+                    gateway_db.set_config("mb_system_error_message", str(final_err))
+                    logger.error("Deactivated MB Bank automatic scanning due to persistent connection failure.")
+                    raise final_err
             
             txn_list = history.transactionHistoryList or []
             logger.info(f"Retrieved {len(txn_list)} transactions from MB Bank after retry.")

@@ -70,7 +70,9 @@ def init_db():
             "mb_password": os.environ.get("MB_PASSWORD", ""),
             "mb_account_number": os.environ.get("MB_ACCOUNT_NUMBER", ""),
             "default_callback_url": os.environ.get("DEFAULT_CALLBACK_URL", ""),
-            "callback_secret": os.environ.get("CALLBACK_SECRET", "super-secret-callback-token")
+            "callback_secret": os.environ.get("CALLBACK_SECRET", "super-secret-callback-token"),
+            "mb_system_active": "true",
+            "bank_scan_interval": "30"
         }
         for key, val in default_configs.items():
             if get_config(key) is None:

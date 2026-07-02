@@ -714,8 +714,8 @@
             // Start countdown timer
             startTimer();
 
-            // Start polling status after 15 seconds delay (user needs time to scan and transfer)
-            setTimeout(startPolling, 15000);
+            // Start polling status after 30 seconds delay (user needs time to scan and transfer)
+            setTimeout(startPolling, 30000);
         });
 
         function formatCurrency(val) {
@@ -842,10 +842,10 @@
             }
         }
 
-        // Webhook status polling (checked every 15 seconds as requested)
+        // Webhook status polling (checked every 30 seconds as requested)
         function startPolling() {
             if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(checkPaymentStatus, 15000); // Poll every 15 seconds
+            pollingInterval = setInterval(checkPaymentStatus, 30000); // Poll every 30 seconds
         }
 
         async function checkPaymentStatus() {
