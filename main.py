@@ -307,9 +307,15 @@ async def test_mb_connection(authenticated: bool = Depends(get_current_user)):
     """Tests connection to MB Bank, retrieving username and account balance."""
     try:
         client = await get_mb_client()
-        # Trigger login/refresh if needed
-        user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
-        balances = await asyncio.to_thread(run_in_thread, client.getBalance)
+        # Try fetching with current session
+        try:
+            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
+            balances = await asyncio.to_thread(run_in_thread, client.getBalance)
+        except Exception as conn_err:
+            logger.warning(f"MB connection expired/error: {conn_err}. Attempting to clear session and re-authenticate...")
+            client.sessionId = None
+            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
+            balances = await asyncio.to_thread(run_in_thread, client.getBalance)
         
         return {
             "success": True,
@@ -323,7 +329,7 @@ async def test_mb_connection(authenticated: bool = Depends(get_current_user)):
             ]
         }
     except Exception as e:
-        logger.error(f"Error testing MB connection: {e}")
+        logger.error(f"Error testing MB connection after retry: {e}")
         return {"success": False, "error": str(e)}
 
 @app.post("/api/scan-now")
@@ -482,16 +488,27 @@ async def perform_transaction_check(force: bool = False) -> int:
             
             # Call bank API in threadpool
             account_no = gateway_db.get_config("mb_account_number") or username
-            history = await asyncio.to_thread(
-                run_in_thread,
-                client.getTransactionAccountHistory,
-                accountNo=account_no,
-                from_date=from_date,
-                to_date=to_date
-            )
+            try:
+                history = await asyncio.to_thread(
+                    run_in_thread,
+                    client.getTransactionAccountHistory,
+                    accountNo=account_no,
+                    from_date=from_date,
+                    to_date=to_date
+                )
+            except Exception as conn_err:
+                logger.warning(f"Error fetching transactions from MB: {conn_err}. Clearing session and retrying login...")
+                client.sessionId = None
+                history = await asyncio.to_thread(
+                    run_in_thread,
+                    client.getTransactionAccountHistory,
+                    accountNo=account_no,
+                    from_date=from_date,
+                    to_date=to_date
+                )
             
             txn_list = history.transactionHistoryList or []
-            logger.info(f"Retrieved {len(txn_list)} transactions from MB Bank.")
+            logger.info(f"Retrieved {len(txn_list)} transactions from MB Bank after retry.")
             
             # Save to cache in database (Supabase)
             try:
