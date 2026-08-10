@@ -586,6 +586,14 @@
                             <input type="text" id="email-sender-filter" name="email_sender_filter" class="form-input" placeholder="notification@mbbank.com.vn, support@timo.vn" value="{{ configs.email_sender_filter or 'notification@mbbank.com.vn' }}">
                         </div>
 
+                        <div class="form-group">
+                            <label class="form-label" for="gmail-pubsub-label-ids">Nhãn Email Gmail Quét Thông Báo (Gmail Label IDs)</label>
+                            <input type="text" id="gmail-pubsub-label-ids" name="gmail_pubsub_label_ids" class="form-input" placeholder="BankNotify, INBOX" value="{{ configs.gmail_pubsub_label_ids or 'BankNotify' }}">
+                            <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">
+                                💡 Nhập tên Label trên Gmail của bạn (VD: <code>BankNotify</code> hoặc <code>BankNotify, INBOX</code>).
+                            </span>
+                        </div>
+
                         <!-- Telegram Bot Section -->
                         <div style="background: rgba(16, 185, 129, 0.04); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 14px; padding: 20px; margin-top: 20px;">
                             <h4 style="font-size: 0.95rem; font-weight: 600; color: #10b981; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
