@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "main.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron?secret=YOUR_CRON_SECRET",
+      "schedule": "59 23 * * *"
+    }
   ]
 }

@@ -3,34 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Cổng Thanh Toán MB Bank Webhook</title>
-    <meta name="description" content="Quản lý cấu hình, webhook và theo dõi giao dịch thanh toán MB Bank.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>KOS Admin - Gateway Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #f8fafc;
-            --card-bg: rgba(255, 255, 255, 0.9);
-            --card-hover: rgba(0, 0, 0, 0.02);
-            --border-color: rgba(0, 0, 0, 0.08);
-            --border-focus: rgba(6, 182, 212, 0.5);
+            --card-bg: #ffffff;
+            --card-hover: #f1f5f9;
             --text-primary: #0f172a;
             --text-secondary: #475569;
-            --text-muted: #94a3b8;
-            --accent-teal: #0891b2;
-            --accent-purple: #6366f1;
+            --border-color: #e2e8f0;
+            --accent-teal: #0d9488;
             --accent-blue: #2563eb;
-            --accent-amber: #d97706;
-            --error-color: #ef4444;
+            --accent-purple: #7c3aed;
             --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         body {
@@ -39,25 +34,21 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow-x: hidden;
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.04) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+            line-height: 1.5;
         }
 
-        /* Top Navbar */
+        /* Navbar Header */
         .navbar {
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 32px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 40px;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .navbar-brand {
@@ -67,21 +58,20 @@
         }
 
         .brand-logo {
-            font-size: 1.8rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
         }
 
         .brand-badge {
-            background: rgba(0, 242, 254, 0.1);
-            color: var(--accent-teal);
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
-            border: 1px solid rgba(0, 242, 254, 0.2);
+            border: 1px solid rgba(37, 99, 235, 0.2);
             text-transform: uppercase;
         }
 
@@ -105,14 +95,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-blue) 100%);
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
             color: #ffffff;
             font-weight: 600;
         }
 
         .btn-primary:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25);
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);
         }
 
         .btn-secondary {
@@ -135,34 +125,82 @@
             background: rgba(239, 68, 68, 0.2);
         }
 
-        /* Layout Grid */
+        /* Top Navigation Main Tabs Bar */
+        .main-tabs-wrapper {
+            max-width: 1400px;
+            width: 100%;
+            margin: 24px auto 0 auto;
+            padding: 0 24px;
+        }
+
+        .main-tabs-bar {
+            display: flex;
+            gap: 12px;
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
+        }
+
+        .main-tab-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 20px;
+            background: transparent;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .main-tab-btn:hover {
+            background: var(--bg-color);
+            color: var(--text-primary);
+        }
+
+        .main-tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
+        }
+
+        .tab-badge {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error-color);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .main-tab-btn.active .tab-badge {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+        }
+
+        /* Container & Cards */
         .container {
             max-width: 1400px;
             width: 100%;
-            margin: 40px auto;
+            margin: 24px auto 40px auto;
             padding: 0 24px;
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 32px;
             flex-grow: 1;
         }
 
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Dashboard Cards */
         .card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 18px;
             padding: 28px;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             box-shadow: 0 8px 30px rgba(15, 23, 42, 0.04);
-            height: fit-content;
+            margin-bottom: 24px;
         }
 
         .card-header {
@@ -184,103 +222,97 @@
 
         .card-subtitle {
             font-size: 0.85rem;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             margin-top: 4px;
         }
 
-        /* Forms */
+        /* Form Controls */
         .form-group {
             margin-bottom: 20px;
         }
 
         .form-label {
             display: block;
-            margin-bottom: 8px;
             font-size: 0.85rem;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
+            color: var(--text-primary);
+            margin-bottom: 8px;
         }
 
         .form-input {
             width: 100%;
             padding: 12px 16px;
             background: #ffffff;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--border-color);
             border-radius: 10px;
             color: var(--text-primary);
             font-size: 0.95rem;
-            outline: none;
             transition: all 0.2s ease;
         }
 
         .form-input:focus {
-            border-color: var(--accent-teal);
-            box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
-            background: rgba(255, 255, 255, 0.05);
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
         .password-wrapper {
             position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-wrapper .form-input {
+            padding-right: 48px;
         }
 
         .btn-toggle-password {
             position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
+            right: 12px;
             background: none;
             border: none;
+            color: var(--text-secondary);
             cursor: pointer;
-            color: var(--text-muted);
             font-size: 1.1rem;
         }
 
-        /* Tabs and Data Tables */
-        .right-column {
-            display: flex;
-            flex-direction: column;
-            gap: 32px;
+        /* Two-Column Grid inside Settings Tab */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
         }
 
+        @media (max-width: 900px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Data List & Sub-Tabs */
         .tabs-header {
             display: flex;
+            gap: 12px;
             border-bottom: 1px solid var(--border-color);
-            margin-bottom: 24px;
-            gap: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
         }
 
         .tab-btn {
-            background: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: transparent;
             border: none;
-            color: var(--text-muted);
-            font-size: 1.05rem;
-            font-weight: 500;
-            padding-bottom: 12px;
-            cursor: pointer;
-            position: relative;
-            transition: color 0.2s ease;
-        }
-
-        .tab-btn:hover {
             color: var(--text-secondary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
         .tab-btn.active {
-            color: var(--accent-teal);
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent-blue);
             font-weight: 600;
-        }
-
-        .tab-btn.active::after {
-            content: '';
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: var(--accent-teal);
-            box-shadow: 0 0 8px var(--accent-teal);
         }
 
         .tab-panel {
@@ -291,23 +323,12 @@
             display: block;
         }
 
-        /* Data list styling */
         .data-list {
             display: flex;
             flex-direction: column;
-            gap: 16px;
-            max-height: 500px;
+            gap: 12px;
+            max-height: 480px;
             overflow-y: auto;
-            padding-right: 8px;
-        }
-
-        .data-list::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .data-list::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
         }
 
         .data-item {
@@ -319,28 +340,28 @@
             justify-content: space-between;
             align-items: center;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.01);
         }
 
         .data-item:hover {
-            background: var(--card-hover);
-            transform: translateX(2px);
-        }
-
-        .item-main {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
         }
 
         .item-title {
-            font-weight: 600;
             font-size: 0.95rem;
+            font-weight: 600;
         }
 
         .item-subtitle {
             font-size: 0.8rem;
-            color: var(--text-muted);
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .item-amount {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-blue);
         }
 
         .item-badge {
@@ -350,48 +371,36 @@
             font-weight: 600;
         }
 
+        .badge-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+
         .badge-success {
             background: rgba(16, 185, 129, 0.1);
             color: var(--success-color);
-            border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
-        .badge-pending {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--accent-amber);
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-
-        .badge-expired {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--error-color);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .item-right {
-            text-align: right;
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
             display: flex;
             flex-direction: column;
-            align-items: flex-end;
-            gap: 6px;
+            align-items: center;
+            gap: 12px;
         }
 
-        .item-amount {
-            font-weight: 700;
-            color: var(--accent-teal);
-            font-size: 1.1rem;
-        }
-
-        /* Console and Logs */
+        /* Console Log Box */
         .console-container {
-            background: #f1f5f9;
-            border: 1px solid #cbd5e1;
+            background: #0f172a;
             border-radius: 12px;
             padding: 16px;
             font-family: 'Courier New', Courier, monospace;
-            height: 250px;
+            height: 220px;
             overflow-y: auto;
             margin-top: 16px;
+            color: #e2e8f0;
         }
 
         .console-line {
@@ -400,11 +409,11 @@
             line-height: 1.4;
         }
 
-        .console-line.info { color: #2563eb; }
-        .console-line.success { color: #10b981; }
-        .console-line.error { color: #ef4444; }
-        .console-line.warning { color: #d97706; }
-        .console-line.input { color: #0f172a; }
+        .console-line.info { color: #38bdf8; }
+        .console-line.success { color: #4ade80; }
+        .console-line.error { color: #f87171; }
+        .console-line.warning { color: #fbbf24; }
+        .console-line.input { color: #f1f5f9; }
 
         /* Toasts */
         .toast-container {
@@ -420,7 +429,6 @@
         .toast {
             background: #ffffff;
             border: 1px solid var(--border-color);
-            backdrop-filter: blur(8px);
             border-radius: 10px;
             padding: 14px 20px;
             color: var(--text-primary);
@@ -436,197 +444,267 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
-
-        .toast.success { border-left: 4px solid var(--success-color); }
-        .toast.error { border-left: 4px solid var(--error-color); }
-        .toast.info { border-left: 4px solid var(--accent-blue); }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-        }
     </style>
 </head>
 <body>
+    <!-- Top Navbar -->
     <header class="navbar">
         <div class="navbar-brand">
-            <h1 class="brand-logo" id="main-title">MB BANK WEBHOOK</h1>
+            <h1 class="brand-logo">KOS ADMIN</h1>
             <span class="brand-badge">PRO v0.3.0</span>
         </div>
         <div class="navbar-actions">
-            <button class="btn btn-secondary" onclick="testMBConnection()" id="btn-test-mb">
-                <span>🔄</span> Test Kết Nối Bank
+            <button class="btn btn-secondary" onclick="testEmailConnection()" id="btn-test-email-nav">
+                <span>📧</span> Test Kết Nối Gmail
             </button>
-            <a href="/logout" class="btn btn-danger" id="logout-link">
+            <a href="/logout" class="btn btn-danger">
                 <span>🚪</span> Đăng xuất
             </a>
         </div>
     </header>
 
+    <!-- Main Navigation Bar (2 Tabs) -->
+    <div class="main-tabs-wrapper">
+        <div class="main-tabs-bar">
+            <button class="main-tab-btn active" id="tab-nav-settings" onclick="switchMainTab('tab-settings')">
+                <span>⚙️</span> Cấu Hình Hệ Thống & Email API
+            </button>
+            <button class="main-tab-btn" id="tab-nav-transactions" onclick="switchMainTab('tab-transactions')">
+                <span>📊</span> Quản Lý Đơn Hàng & Lịch Sử Giao Dịch
+                <span class="tab-badge" id="pending-count-badge">{{ pending_payments|length if pending_payments else 0 }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container View -->
     <main class="container">
-        <!-- Configuration Column -->
-        <section class="card" id="config-card">
-            <div class="card-header">
-                <div>
-                    <h2 class="card-title">⚙️ Cấu Hình Hệ Thống</h2>
-                    <p class="card-subtitle">Thiết lập kết nối ngân hàng và webhook</p>
-                    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
-                        {% if configs.mb_system_active == 'false' %}
-                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background-color: #fee2e2; color: #ef4444; font-size: 0.8rem; font-weight: 600;">
-                                    ⚠️ Tự động quét: ĐÃ TẠM DỪNG DO LỖI
-                                </span>
-                                {% if configs.mb_system_error_message %}
-                                    <span style="font-size: 0.75rem; color: #ef4444;" title="{{ configs.mb_system_error_message }}">
-                                        Lỗi: {{ configs.mb_system_error_message }}
-                                    </span>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <div>
-                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background-color: #d1fae5; color: #10b981; font-size: 0.8rem; font-weight: 600;">
-                                    🟢 Tự động quét: ĐANG HOẠT ĐỘNG
-                                </span>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
+        <!-- ================= TAB 1: CẤU HÌNH HỆ THỐNG & EMAIL API ================= -->
+        <div id="tab-settings" class="main-tab-content">
             <form id="config-form" onsubmit="saveConfigs(event)">
-                <div class="form-group">
-                    <label class="form-label" for="mb-username">MB Bank Username</label>
-                    <input 
-                        type="text" 
-                        id="mb-username" 
-                        name="mb_username" 
-                        class="form-input" 
-                        placeholder="Số điện thoại đăng nhập app"
-                        value="{{ configs.mb_username or '' }}"
-                        required
-                    >
-                </div>
+                <div class="settings-grid">
+                    <!-- Column 1: Core System & VietQR Configurations -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">🏦 Tài Khoản Ngân Hàng & Callback</h2>
+                                <p class="card-subtitle">Cấu hình VietQR và URL điều hướng sau khi thanh toán</p>
+                            </div>
+                        </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="mb-password">MB Bank Password</label>
-                    <div class="password-wrapper">
-                        <input 
-                            type="password" 
-                            id="mb-password" 
-                            name="mb_password" 
-                            class="form-input" 
-                            placeholder="Mật khẩu internet banking"
-                            value="{{ configs.mb_password or '' }}"
-                            required
-                        >
-                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('mb-password')">👁️</button>
+                        <div class="form-group">
+                            <label class="form-label" for="mb-bank-code">Ngân Hàng Nhận Tiền (VietQR)</label>
+                            <select id="mb-bank-code" name="mb_bank_code" class="form-input">
+                                <option value="MB" {% if configs.mb_bank_code == 'MB' or not configs.mb_bank_code %}selected{% endif %}>MB Bank (Ngân hàng Quân Đội)</option>
+                                <option value="TIMO" {% if configs.mb_bank_code == 'TIMO' %}selected{% endif %}>Timo Digital Bank (BVBank)</option>
+                                <option value="VCB" {% if configs.mb_bank_code == 'VCB' %}selected{% endif %}>Vietcombank (Ngoại Thương)</option>
+                                <option value="TCB" {% if configs.mb_bank_code == 'TCB' %}selected{% endif %}>Techcombank (Kỹ Thương)</option>
+                                <option value="ACB" {% if configs.mb_bank_code == 'ACB' %}selected{% endif %}>ACB (Á Châu)</option>
+                                <option value="VPB" {% if configs.mb_bank_code == 'VPB' %}selected{% endif %}>VPBank (Thịnh Vượng)</option>
+                                <option value="TPB" {% if configs.mb_bank_code == 'TPB' %}selected{% endif %}>TPBank (Tiên Phong)</option>
+                                <option value="BIDV" {% if configs.mb_bank_code == 'BIDV' %}selected{% endif %}>BIDV</option>
+                                <option value="CTG" {% if configs.mb_bank_code == 'CTG' %}selected{% endif %}>VietinBank</option>
+                                <option value="STB" {% if configs.mb_bank_code == 'STB' %}selected{% endif %}>Sacombank</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="mb-account-number">Số Tài Khoản Nhận Tiền (VietQR)</label>
+                            <input type="text" id="mb-account-number" name="mb_account_number" class="form-input" placeholder="VD: 0123456789" value="{{ configs.mb_account_number or '' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="mb-account-name">Tên Chủ Tài Khoản (VietQR)</label>
+                            <input type="text" id="mb-account-name" name="mb_account_name" class="form-input" placeholder="VD: NGUYEN VAN A" value="{{ configs.mb_account_name or '' }}">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="default-callback-url">Callback URL Mặc Định</label>
+                            <input type="url" id="default-callback-url" name="default_callback_url" class="form-input" placeholder="https://website.com/api/payment-callback" value="{{ configs.default_callback_url or '' }}">
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Email Gateway & OAuth Configuration -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h2 class="card-title">📧 Email Đọc Thông Báo Ngân Hàng</h2>
+                                <p class="card-subtitle">Thiết lập tài khoản Gmail đọc biến động số dư qua OAuth2 / IMAP</p>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="email-auth-method">Phương Thức Xác Thực</label>
+                            <select id="email-auth-method" name="email_auth_method" class="form-input" onchange="toggleEmailAuthFields()">
+                                <option value="oauth2" {% if configs.email_auth_method == 'oauth2' or not configs.email_auth_method %}selected{% endif %}>Google OAuth2 API (Google Client ID & Refresh Token)</option>
+                                <option value="imap" {% if configs.email_auth_method == 'imap' %}selected{% endif %}>Gmail App Password (IMAP SSL)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="gmail-address">Địa Chỉ Gmail Nhận Thông Báo Ngân Hàng</label>
+                            <input type="email" id="gmail-address" name="gmail_address" class="form-input" placeholder="your-email@gmail.com" value="{{ configs.gmail_address or '' }}">
+                        </div>
+
+                        <!-- OAuth2 Fields -->
+                        <div id="oauth2-fields-container" style="display: {% if configs.email_auth_method != 'imap' %}block{% else %}none{% endif %};">
+                            <div style="margin-bottom: 16px;">
+                                <button type="button" class="btn" style="width: 100%; justify-content: center; background: #ffffff; color: #1f2937; border: 1px solid #d1d5db; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.05); padding: 12px 16px;" onclick="connectGoogleOAuth()">
+                                    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px;">
+                                        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                                        <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                                        <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
+                                        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962l3.007 2.332A5.39 5.39 0 0 1 9 3.58z" fill="#EA4335"/>
+                                    </svg>
+                                    Đăng Nhập & Kết Nối Gmail Qua Google SSO
+                                </button>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="gmail-refresh-token">Google Refresh Token (OAuth2)</label>
+                                <div class="password-wrapper">
+                                    <input type="password" id="gmail-refresh-token" name="gmail_refresh_token" class="form-input" placeholder="Nhấn nút Đăng Nhập Google ở trên để tự động nạp" value="{{ configs.gmail_refresh_token or '' }}">
+                                    <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('gmail-refresh-token')">👁️</button>
+                                </div>
+                            </div>
+                            <div style="background: rgba(37, 99, 235, 0.05); border: 1px solid rgba(37, 99, 235, 0.15); border-radius: 10px; padding: 12px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;">
+                                ℹ️ <b>Google Client ID</b> và <b>Client Secret</b> đã được tự động nạp an toàn từ file <code>.env</code>.
+                            </div>
+                        </div>
+
+                        <!-- IMAP Fields -->
+                        <div id="imap-fields-container" style="display: {% if configs.email_auth_method == 'imap' %}block{% else %}none{% endif %};">
+                            <div class="form-group">
+                                <label class="form-label" for="gmail-app-password">Gmail App Password (16 Ký tự)</label>
+                                <div class="password-wrapper">
+                                    <input type="password" id="gmail-app-password" name="gmail_app_password" class="form-input" placeholder="xxxx xxxx xxxx xxxx" value="{{ configs.gmail_app_password or '' }}">
+                                    <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('gmail-app-password')">👁️</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="email-sender-filter">Lọc Sender / Email Ngân Hàng Gửi Về</label>
+                            <input type="text" id="email-sender-filter" name="email_sender_filter" class="form-input" placeholder="notification@mbbank.com.vn, support@timo.vn" value="{{ configs.email_sender_filter or 'notification@mbbank.com.vn' }}">
+                        </div>
+
+                        <!-- Telegram Bot Section -->
+                        <div style="background: rgba(16, 185, 129, 0.04); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 14px; padding: 20px; margin-top: 20px;">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; color: #10b981; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                ✈️ Thông Báo Bắn Log Về Telegram Bot
+                            </h4>
+
+                            <div class="form-group">
+                                <label class="form-label" for="telegram-notify-active">Trạng Thái Gửi Telegram</label>
+                                <select id="telegram-notify-active" name="telegram_notify_active" class="form-input">
+                                    <option value="true" {% if configs.telegram_notify_active != 'false' %}selected{% endif %}>Bật thông báo Telegram</option>
+                                    <option value="false" {% if configs.telegram_notify_active == 'false' %}selected{% endif %}>Tắt thông báo Telegram</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="telegram-bot-token">Telegram Bot Token</label>
+                                <input type="text" id="telegram-bot-token" name="telegram_bot_token" class="form-input" placeholder="8785653790:AAEFEKppCeqEteQqua2PnN40ln2XCkSUHE8" value="{{ configs.telegram_bot_token or '8785653790:AAEFEKppCeqEteQqua2PnN40ln2XCkSUHE8' }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="telegram-chat-id">Telegram Account / Chat ID Nhận Tin Nhắn</label>
+                                <input type="text" id="telegram-chat-id" name="telegram_chat_id" class="form-input" placeholder="VD: 123456789 hoặc -100xxx" value="{{ configs.telegram_chat_id or '' }}">
+                                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">
+                                    💡 Mẹo: Chat với bot <code>@userinfobot</code> hoặc <code>@raw_data_bot</code> trên Telegram để lấy Chat ID của bạn.
+                                </span>
+                            </div>
+
+                            <button type="button" class="btn btn-secondary" style="width: 100%; font-size: 0.85rem; margin-top: 8px;" onclick="testTelegramNotification()" id="btn-test-telegram">
+                                🧪 Test Gửi Thử Tin Nhắn Telegram
+                            </button>
+                        </div>
+
+                        <!-- HTML Email Template & Parser -->
+                        <div style="background: rgba(37, 99, 235, 0.04); border: 1px solid rgba(37, 99, 235, 0.15); border-radius: 14px; padding: 20px; margin-top: 20px;">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--accent-blue); margin-bottom: 12px;">
+                                📄 Import HTML Email Mẫu & Regex Trích Xuất Dữ Liệu
+                            </h4>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="applyPreset('timo')">🏛️ Timo Bank Preset</button>
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="applyPreset('mbbank')">🏛️ MB Bank Preset</button>
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="applyPreset('vietcombank')">🏛️ Vietcombank Preset</button>
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="applyPreset('techcombank')">🏛️ Techcombank Preset</button>
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="applyPreset('generic')">🏛️ Generic Preset</button>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="email-html-template">Paste Nội Dung HTML Email Mẫu Từ Bank</label>
+                                <textarea id="email-html-template" name="email_html_template" class="form-input" style="height: 100px; font-family: monospace; font-size: 0.8rem;" placeholder="Dán mã nguồn HTML hoặc nội dung email ngân hàng mẫu vào đây để test parser...">{{ configs.email_html_template or '' }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="email-parser-regex-amount">Regex Trích Xuất Số Tiền (Amount)</label>
+                                <input type="text" id="email-parser-regex-amount" name="email_parser_regex_amount" class="form-input" style="font-family: monospace; font-size: 0.85rem;" value="{{ configs.email_parser_regex_amount or '(?:Số tiền|Số tiền GD|Giao dịch|Số tiền tăng|Cộng tài khoản|Số tiền biến động)[:\\s]*\\+?\\s*([\\d\\.,]+)\\s*(?:VND|VNĐ|đ)?' }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="email-parser-regex-content">Regex Trích Xuất Nội Dung Chuyển Khoản (Content)</label>
+                                <input type="text" id="email-parser-regex-content" name="email_parser_regex_content" class="form-input" style="font-family: monospace; font-size: 0.85rem;" value="{{ configs.email_parser_regex_content or '(?:Nội dung|Nội dung chuyển khoản|NDCK|Nội dung GD)[:\\s]*([^\\n<]+)' }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="email-parser-regex-trans-no">Regex Trích Xuất Mã Giao Dịch (Trans No / FT)</label>
+                                <input type="text" id="email-parser-regex-trans-no" name="email_parser_regex_trans_no" class="form-input" style="font-family: monospace; font-size: 0.85rem;" value="{{ configs.email_parser_regex_trans_no or '(?:Mã giao dịch|Mã GD|Số FT|Ref No|So FT|Số HĐ)[:\\s]*([A-Z0-9\\.\\-]+)' }}">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="email-parser-regex-date">Regex Trích Xuất Thời Gian GD (Date)</label>
+                                <input type="text" id="email-parser-regex-date" name="email_parser_regex_date" class="form-input" style="font-family: monospace; font-size: 0.85rem;" value="{{ configs.email_parser_regex_date or '(?:Thời gian|Ngày giao dịch|Ngày GD)[:\\s]*([\\d\\/\\:\\s\\-]+)' }}">
+                            </div>
+
+                            <div style="display: flex; gap: 10px; margin-top: 14px;">
+                                <button type="button" class="btn btn-secondary" style="flex: 1; font-size: 0.85rem;" onclick="testEmailConnection()" id="btn-test-email">
+                                    📧 Test Kết Nối Gmail
+                                </button>
+                                <button type="button" class="btn btn-primary" style="flex: 1; font-size: 0.85rem;" onclick="testParseHtmlSample()" id="btn-test-parse">
+                                    🧪 Test Đọc HTML Mẫu
+                                </button>
+                            </div>
+
+                            <div id="parse-test-result" style="display: none; margin-top: 16px; background: #ffffff; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; font-size: 0.85rem;">
+                                <div style="font-weight: 600; color: var(--accent-teal); margin-bottom: 8px;">Kết quả trích xuất từ HTML Mẫu:</div>
+                                <div id="parse-result-details"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="mb-account-number">Số Tài Khoản Nhận Tiền</label>
-                    <input 
-                        type="text" 
-                        id="mb-account-number" 
-                        name="mb_account_number" 
-                        class="form-input" 
-                        placeholder="Để trống nếu trùng với Username"
-                        value="{{ configs.mb_account_number or '' }}"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="default-callback-url">Callback URL Mặc Định</label>
-                    <input 
-                        type="url" 
-                        id="default-callback-url" 
-                        name="default_callback_url" 
-                        class="form-input" 
-                        placeholder="https://website.com/api/payment-callback"
-                        value="{{ configs.default_callback_url or '' }}"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="callback-secret">Secret Token Webhook</label>
-                    <input 
-                        type="text" 
-                        id="callback-secret" 
-                        name="callback_secret" 
-                        class="form-input" 
-                        placeholder="Token để xác thực callback ở server nhận"
-                        value="{{ configs.callback_secret or '' }}"
-                        required
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="admin-password">Mật Khẩu Dashboard Admin</label>
-                    <div class="password-wrapper">
-                        <input 
-                            type="password" 
-                            id="admin-password" 
-                            name="admin_password" 
-                            class="form-input" 
-                            placeholder="Thay đổi mật khẩu đăng nhập"
-                            value="{{ configs.admin_password or 'admin123' }}"
-                            required
-                        >
-                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('admin-password')">👁️</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="mb-system-active">Tự Động Quét Giao Dịch</label>
-                    <select id="mb-system-active" name="mb_system_active" class="form-input">
-                        <option value="true" {% if configs.mb_system_active != 'false' %}selected{% endif %}>Bật (Hoạt động)</option>
-                        <option value="false" {% if configs.mb_system_active == 'false' %}selected{% endif %}>Tắt (Tạm dừng)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="bank-scan-interval">Tần Suất Quét MB Bank (giây)</label>
-                    <input 
-                        type="number" 
-                        id="bank-scan-interval" 
-                        name="bank_scan_interval" 
-                        class="form-input" 
-                        min="10" 
-                        max="3600"
-                        placeholder="Mặc định: 30 giây"
-                        value="{{ configs.bank_scan_interval or '30' }}"
-                        required
-                    >
-                </div>
-
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" id="btn-save-configs">
-                    💾 Lưu Cấu Hình
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 24px; padding: 14px; font-size: 1rem;" id="btn-save-configs">
+                    💾 Lưu Tất Cả Cấu Hình
                 </button>
             </form>
-        </section>
+        </div>
 
-        <!-- Transaction, Queue & Logs Column -->
-        <section class="right-column" id="tracking-section">
-            <!-- Tabs -->
-            <div class="card" style="width: 100%;">
-                <div class="tabs-header">
-                    <button class="tab-btn active" onclick="switchTab(event, 'pending-panel')">⏳ Đơn Đang Chờ</button>
-                    <button class="tab-btn" onclick="switchTab(event, 'processed-panel')">✅ Đã Thanh Toán</button>
-                </div>
-
-                <!-- Tab 1: Pending Payments -->
-                <div id="pending-panel" class="tab-panel active">
-                    <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
-                        <button class="btn btn-danger" style="font-size: 0.82rem; padding: 6px 12px;" onclick="deleteAllPendingPayments()">
+        <!-- ================= TAB 2: QUẢN LÝ ĐƠN HÀNG & GIAO DỊCH ================= -->
+        <div id="tab-transactions" class="main-tab-content" style="display: none;">
+            <div class="card">
+                <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2 class="card-title">📊 Quản Lý Đơn Hàng & Lịch Sử Đối Soát</h2>
+                        <p class="card-subtitle">Theo dõi các mã QR đang chờ và các giao dịch chuyển tiền đã được xác nhận</p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" style="font-size: 0.85rem;" onclick="checkRecentTransactions()" id="btn-force-check">
+                            🔍 Quét giao dịch ngay
+                        </button>
+                        <button class="btn btn-danger" style="font-size: 0.85rem;" onclick="deleteAllPendingPayments()">
                             🗑️ Xoá Tất Cả Đang Chờ
                         </button>
                     </div>
+                </div>
+
+                <!-- Inner Sub-Tabs -->
+                <div class="tabs-header">
+                    <button class="tab-btn active" onclick="switchTab(event, 'pending-panel')">⏳ Đơn Đang Chờ Thanh Toán</button>
+                    <button class="tab-btn" onclick="switchTab(event, 'processed-panel')">✅ Giao Dịch Đã Thành Công</button>
+                </div>
+
+                <!-- Sub-Panel 1: Pending Payments -->
+                <div id="pending-panel" class="tab-panel active">
                     <div class="data-list" id="pending-list">
                         {% if pending_payments %}
                             {% for pay in pending_payments %}
@@ -647,14 +725,14 @@
                             {% endfor %}
                         {% else %}
                             <div class="empty-state">
-                                <span>📥</span>
-                                <span>Không có QR code nào đang chờ thanh toán.</span>
+                                <span style="font-size: 2rem;">📥</span>
+                                <span>Hiện không có đơn hàng nào đang chờ thanh toán.</span>
                             </div>
                         {% endif %}
                     </div>
                 </div>
 
-                <!-- Tab 2: Processed Transactions -->
+                <!-- Sub-Panel 2: Processed Transactions -->
                 <div id="processed-panel" class="tab-panel">
                     <div class="data-list" id="processed-list">
                         {% if processed_transactions %}
@@ -673,7 +751,7 @@
                             {% endfor %}
                         {% else %}
                             <div class="empty-state">
-                                <span>💸</span>
+                                <span style="font-size: 2rem;">💸</span>
                                 <span>Chưa có giao dịch nào được đối soát thành công.</span>
                             </div>
                         {% endif %}
@@ -681,37 +759,110 @@
                 </div>
             </div>
 
-            <!-- Diagnostics Console -->
-            <div class="card" style="width: 100%;">
+            <!-- Diagnostics Console Card -->
+            <div class="card">
                 <div class="card-header" style="margin-bottom: 12px; padding-bottom: 8px;">
                     <div>
-                        <h2 class="card-title">🖥️ Bảng Điều Khiển Chẩn Đoán</h2>
-                        <p class="card-subtitle">Log hệ thống và kiểm tra trực tiếp</p>
+                        <h2 class="card-title">🖥️ Nhật Ký Hoạt Động & System Logs</h2>
+                        <p class="card-subtitle">Theo dõi lịch sử gọi API và thông báo xử lý từ hệ thống</p>
                     </div>
-                </div>
-                <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                    <button class="btn btn-secondary" onclick="checkRecentTransactions()" style="flex: 1; font-size: 0.8rem;" id="btn-force-check">
-                        🔍 Quét giao dịch thủ công
-                    </button>
                     <button class="btn btn-secondary" onclick="clearConsole()" style="font-size: 0.8rem;">
                         🗑️ Xóa log
                     </button>
                 </div>
                 <div class="console-container" id="diagnostic-console">
-                    <div class="console-line info">[Hệ thống] Đang tải bảng điều khiển...</div>
-                    <div class="console-line info">[Hệ thống] Trình kết nối MB Bank sẵn sàng.</div>
+                    <div class="console-line info">[Hệ thống] Đang tải bảng điều khiển Admin KOS Gateway...</div>
+                    <div class="console-line info">[Hệ thống] Kết nối Google Email API sẵn sàng.</div>
                 </div>
             </div>
-        </section>
+        </div>
     </main>
 
-    <!-- Toast elements container -->
     <div class="toast-container" id="toast-container"></div>
 
     <script>
+        function connectGoogleOAuth() {
+            window.location.href = '/api/oauth2/connect';
+        }
+
+        // Handle OAuth Return Params
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('oauth_success')) {
+                const connectedEmail = urlParams.get('email') || '';
+                showToast(`🎉 Đã kết nối thành công Gmail: ${connectedEmail}!`, 'success');
+                log(`Ủy quyền Google OAuth2 thành công cho Gmail: ${connectedEmail}`, 'success');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (urlParams.has('oauth_error')) {
+                const errorMsg = urlParams.get('oauth_error') || 'Lỗi ủy quyền Google';
+                showToast(`❌ ${errorMsg}`, 'error');
+                log(`Lỗi ủy quyền Google OAuth: ${errorMsg}`, 'error');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+
+        async function testTelegramNotification() {
+            const btn = document.getElementById("btn-test-telegram");
+            btn.disabled = true;
+            btn.innerText = "⏳ Đang gửi tin nhắn test...";
+            
+            try {
+                const res = await fetch("/api/test-telegram", { method: "POST" });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("🎉 " + data.message, "success");
+                    log(data.message, "success");
+                } else {
+                    showToast("❌ " + data.error, "error");
+                    log("Lỗi gửi Telegram: " + data.error, "error");
+                }
+            } catch (e) {
+                showToast("❌ Lỗi kết nối máy chủ: " + e.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🧪 Test Gửi Thử Tin Nhắn Telegram";
+            }
+        }
+
+        // Switch Top Main Tabs
+        function switchMainTab(tabId) {
+            document.querySelectorAll('.main-tab-content').forEach(el => {
+                el.style.display = 'none';
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.main-tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const target = document.getElementById(tabId);
+            if (target) {
+                target.style.display = 'block';
+                target.classList.add('active');
+            }
+
+            if (tabId === 'tab-settings') {
+                document.getElementById('tab-nav-settings').classList.add('active');
+            } else if (tabId === 'tab-transactions') {
+                document.getElementById('tab-nav-transactions').classList.add('active');
+            }
+        }
+
+        // Switch Sub Tabs inside Transactions Card
+        function switchTab(evt, tabId) {
+            const panels = document.querySelectorAll('.tab-panel');
+            panels.forEach(p => p.classList.remove('active'));
+
+            const tabs = document.querySelectorAll('.tab-btn');
+            tabs.forEach(t => t.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
         // Log Helper
         function log(message, type = 'info') {
             const consoleBox = document.getElementById('diagnostic-console');
+            if (!consoleBox) return;
             const line = document.createElement('div');
             line.className = `console-line ${type}`;
             const timeStr = new Date().toLocaleTimeString('vi-VN');
@@ -721,22 +872,23 @@
         }
 
         function clearConsole() {
-            document.getElementById('diagnostic-console').innerHTML = '<div class="console-line info">[Hệ thống] Log đã được làm sạch.</div>';
+            const consoleBox = document.getElementById('diagnostic-console');
+            if (consoleBox) consoleBox.innerHTML = '<div class="console-line info">[Hệ thống] Log đã được làm sạch.</div>';
         }
 
-        // Show toast notification
+        // Toast Helper
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            
+
             let icon = 'ℹ️';
             if (type === 'success') icon = '✅';
             if (type === 'error') icon = '❌';
 
             toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
             container.appendChild(toast);
-            
+
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(10px)';
@@ -745,19 +897,6 @@
             }, 3000);
         }
 
-        // Switch Tabs
-        function switchTab(evt, tabId) {
-            const panels = document.querySelectorAll('.tab-panel');
-            panels.forEach(p => p.classList.remove('active'));
-            
-            const tabs = document.querySelectorAll('.tab-btn');
-            tabs.forEach(t => t.classList.remove('active'));
-
-            document.getElementById(tabId).classList.add('active');
-            evt.currentTarget.classList.add('active');
-        }
-
-        // Toggle Password field visibility
         function togglePasswordVisibility(fieldId) {
             const field = document.getElementById(fieldId);
             if (field.type === 'password') {
@@ -775,21 +914,21 @@
             const data = Object.fromEntries(formData.entries());
 
             log('Đang gửi cập nhật cấu hình lên máy chủ...', 'input');
-            
+
             try {
                 const res = await fetch('/admin/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await res.json();
                 if (result.success) {
                     log('Cập nhật cấu hình thành công!', 'success');
                     showToast('Đã lưu cấu hình thành công!', 'success');
                 } else {
                     log(`Cập nhật thất bại: ${result.error}`, 'error');
-                    showToast(result.error, 'error');
+                    showToast(result.error || 'Phiên đăng nhập đã hết hạn', 'error');
                 }
             } catch (err) {
                 log(`Lỗi kết nối khi lưu cấu hình: ${err.message}`, 'error');
@@ -797,43 +936,16 @@
             }
         }
 
-        // Test MB Bank connection
-        async function testMBConnection() {
-            const btn = document.getElementById('btn-test-mb');
-            btn.disabled = true;
-            log('Bắt đầu kiểm tra kết nối tài khoản MB Bank...', 'info');
-            log('Đang đăng nhập và kiểm tra số dư... (quá trình xử lý CAPTCHA có thể mất 5-15s)...', 'info');
-            
-            try {
-                const res = await fetch('/api/test-mb', { method: 'POST' });
-                const result = await res.json();
-                
-                if (result.success) {
-                    log(`Kiểm tra thành công! Chủ tài khoản: ${result.account_name}`, 'success');
-                    log(`Chi tiết tài khoản: ${JSON.stringify(result.balances)}`, 'success');
-                    showToast(`Kết nối OK! Chủ TK: ${result.account_name}`, 'success');
-                } else {
-                    log(`Lỗi kiểm tra kết nối: ${result.error}`, 'error');
-                    showToast(`Lỗi kết nối: ${result.error}`, 'error');
-                }
-            } catch (err) {
-                log(`Lỗi hệ thống: ${err.message}`, 'error');
-                showToast('Lỗi hệ thống!', 'error');
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
         // Manual scan transactions
         async function checkRecentTransactions() {
             const btn = document.getElementById('btn-force-check');
-            btn.disabled = true;
-            log('Kích hoạt quét thủ công các giao dịch gần đây để đối soát...', 'info');
-            
+            if (btn) btn.disabled = true;
+            log('Kích hoạt quét thủ công các giao dịch gần đây...', 'info');
+
             try {
                 const res = await fetch('/api/scan-now', { method: 'POST' });
                 const result = await res.json();
-                
+
                 if (result.success) {
                     log(`Quét hoàn tất! Xử lý thành công ${result.processed_count} giao dịch mới.`, 'success');
                     showToast(`Quét xong! Phát hiện ${result.processed_count} GD mới.`, 'success');
@@ -846,24 +958,20 @@
                 log(`Lỗi: ${err.message}`, 'error');
                 showToast('Lỗi kết nối!', 'error');
             } finally {
-                btn.disabled = false;
+                if (btn) btn.disabled = false;
             }
         }
 
         // Delete pending payment
         async function deletePendingPayment(paymentId) {
-            if (!confirm('Bạn có chắc chắn muốn xoá yêu cầu thanh toán đang chờ này không?')) {
-                return;
-            }
-            
+            if (!confirm('Bạn có chắc chắn muốn xoá yêu cầu thanh toán đang chờ này không?')) return;
+
             log(`Đang xoá yêu cầu thanh toán ${paymentId}...`, 'info');
-            
+
             try {
-                const res = await fetch(`/api/pending-payments/${paymentId}`, {
-                    method: 'DELETE'
-                });
+                const res = await fetch(`/api/pending-payments/${paymentId}`, { method: 'DELETE' });
                 const result = await res.json();
-                
+
                 if (result.success) {
                     log('Xoá yêu cầu thanh toán thành công!', 'success');
                     showToast('Đã xoá yêu cầu thanh toán!', 'success');
@@ -880,18 +988,14 @@
 
         // Delete all pending payments
         async function deleteAllPendingPayments() {
-            if (!confirm('Bạn có chắc chắn muốn xoá TẤT CẢ các yêu cầu thanh toán đang chờ không?')) {
-                return;
-            }
-            
+            if (!confirm('Bạn có chắc chắn muốn xoá TẤT CẢ các yêu cầu thanh toán đang chờ không?')) return;
+
             log('Đang xoá tất cả yêu cầu thanh toán đang chờ...', 'info');
-            
+
             try {
-                const res = await fetch('/api/pending-payments', {
-                    method: 'DELETE'
-                });
+                const res = await fetch('/api/pending-payments', { method: 'DELETE' });
                 const result = await res.json();
-                
+
                 if (result.success) {
                     log('Xoá tất cả thành công!', 'success');
                     showToast('Đã xoá tất cả yêu cầu đang chờ!', 'success');
@@ -903,6 +1007,157 @@
             } catch (err) {
                 log(`Lỗi: ${err.message}`, 'error');
                 showToast('Lỗi kết nối!', 'error');
+            }
+        }
+
+        function toggleEmailAuthFields() {
+            const method = document.getElementById('email-auth-method').value;
+            const imapBox = document.getElementById('imap-fields-container');
+            const oauthBox = document.getElementById('oauth2-fields-container');
+
+            if (method === 'oauth2') {
+                imapBox.style.display = 'none';
+                oauthBox.style.display = 'block';
+            } else {
+                imapBox.style.display = 'block';
+                oauthBox.style.display = 'none';
+            }
+        }
+
+        const PRESETS = {
+            timo: {
+                sender: "support@timo.vn",
+                regex_amount: "(?:vừa tăng|tăng|vừa cộng|Số tiền ghi có|Số tiền)[:\\s]*\\+?\\s*([\\d\\.,]+)\\s*(?:VND|VNĐ|đ)?",
+                regex_content: "(?:Mô tả|Nội dung chuyển khoản|NDCK|Nội dung GD)[:\\s]*([^\\n<]+)",
+                regex_trans_no: "(?:Mã giao dịch|Mã GD|Mô tả)[:\\s]*([^\\n<]+)",
+                regex_date: "(?:vào|Thời gian|Ngày)[:\\s]*([\\d\\/\\:\\s\\-]+)"
+            },
+            mbbank: {
+                sender: "notification@mbbank.com.vn",
+                regex_amount: "(?:Số tiền|Số tiền GD|Giao dịch|Số tiền tăng|Cộng tài khoản|Số tiền biến động)[:\\s]*\\+?\\s*([\\d\\.,]+)\\s*(?:VND|VNĐ|đ)?",
+                regex_content: "(?:Nội dung|Nội dung chuyển khoản|NDCK|Nội dung GD)[:\\s]*([^\\n<]+)",
+                regex_trans_no: "(?:Mã giao dịch|Mã GD|Số FT|Ref No|So FT|Số HĐ)[:\\s]*([A-Z0-9\\.\\-]+)",
+                regex_date: "(?:Thời gian|Ngày giao dịch|Ngày GD)[:\\s]*([\\d\\/\\:\\s\\-]+)"
+            },
+            vietcombank: {
+                sender: "vietcombank.com.vn",
+                regex_amount: "(?:Số tiền|Số tiền ghi có|Số tiền tăng)[:\\s]*\\+?\\s*([\\d\\.,]+)\\s*(?:VND|VNĐ|đ)?",
+                regex_content: "(?:Nội dung thanh toán|Nội dung GD|Nội dung)[:\\s]*([^\\n<]+)",
+                regex_trans_no: "(?:Mã giao dịch|Mã GD|Ref)[:\\s]*([A-Z0-9\\.\\-]+)",
+                regex_date: "(?:Thời gian|Ngày GD)[:\\s]*([\\d\\/\\:\\s\\-]+)"
+            },
+            techcombank: {
+                sender: "techcombank.com.vn",
+                regex_amount: "(?:Số tiền|Ghi có|Số tiền tăng)[:\\s]*\\+?\\s*([\\d\\.,]+)\\s*(?:VND|VNĐ|đ)?",
+                regex_content: "(?:Nội dung|Nội dung giao dịch)[:\\s]*([^\\n<]+)",
+                regex_trans_no: "(?:Mã giao dịch|Mã GD|FT)[:\\s]*([A-Z0-9\\.\\-]+)",
+                regex_date: "(?:Thời gian|Ngày)[:\\s]*([\\d\\/\\:\\s\\-]+)"
+            },
+            generic: {
+                sender: "",
+                regex_amount: "(?:[\\+\\s])([\\d\\.,]{4,15})\\s*(?:VND|VNĐ|đ)",
+                regex_content: "(?:Nội dung|NDCK|Description|ND|Chi tiết)[:\\s]*([^\\n<]+)",
+                regex_trans_no: "(?:Mã GD|FT|Ref|Mã giao dịch|So FT)[:\\s]*([A-Z0-9\\.\\-]+)",
+                regex_date: "(\\d{2}/\\d{2}/\\d{4}\\s+\\d{2}:\\d{2}(?::\\d{2})?)"
+            }
+        };
+
+        function applyPreset(bankKey) {
+            const p = PRESETS[bankKey];
+            if (!p) return;
+
+            if (p.sender) document.getElementById('email-sender-filter').value = p.sender;
+            document.getElementById('email-parser-regex-amount').value = p.regex_amount;
+            document.getElementById('email-parser-regex-content').value = p.regex_content;
+            document.getElementById('email-parser-regex-trans-no').value = p.regex_trans_no;
+            document.getElementById('email-parser-regex-date').value = p.regex_date;
+
+            showToast(`Đã áp dụng Mẫu preset: ${bankKey.toUpperCase()}`, 'info');
+            log(`Áp dụng preset ${bankKey.toUpperCase()} thành công.`, 'info');
+        }
+
+        async function testEmailConnection() {
+            const btn = document.getElementById('btn-test-email');
+            if (btn) btn.disabled = true;
+            log('Đang kết nối tới Gmail để đọc email ngân hàng...', 'info');
+
+            try {
+                const res = await fetch('/api/test-email-connection', { method: 'POST' });
+                const result = await res.json();
+
+                if (result.success) {
+                    log(`Thành công! ${result.message}`, 'success');
+                    showToast(result.message, 'success');
+                    if (result.samples && result.samples.length > 0) {
+                        result.samples.forEach((s, idx) => {
+                            log(`[Email #${idx+1}] Từ: ${s.from} | Tiêu đề: ${s.subject}`, 'info');
+                            log(` └ Trích xuất: Số tiền = ${s.parsed.amount.toLocaleString()}đ | NDCK = ${s.parsed.content || 'N/A'} | Mã GD = ${s.parsed.trans_no || 'N/A'}`, 'success');
+                        });
+                    }
+                } else {
+                    log(`Lỗi kết nối Gmail: ${result.error}`, 'error');
+                    showToast(`Lỗi Gmail: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi kết nối: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function testParseHtmlSample() {
+            const htmlContent = document.getElementById('email-html-template').value;
+            if (!htmlContent.trim()) {
+                alert('Vui lòng dán mã HTML hoặc nội dung email ngân hàng mẫu vào ô textarea trước khi test!');
+                return;
+            }
+
+            const btn = document.getElementById('btn-test-parse');
+            if (btn) btn.disabled = true;
+            log('Đang phân tích và trích xuất dữ liệu từ HTML Mẫu...', 'info');
+
+            const payload = {
+                html_content: htmlContent,
+                regex_amount: document.getElementById('email-parser-regex-amount').value,
+                regex_content: document.getElementById('email-parser-regex-content').value,
+                regex_trans_no: document.getElementById('email-parser-regex-trans-no').value,
+                regex_date: document.getElementById('email-parser-regex-date').value
+            };
+
+            try {
+                const res = await fetch('/api/parse-email-sample', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await res.json();
+                if (result.success) {
+                    const p = result.parsed;
+                    log(`Phân tích HTML thành công! Số tiền: ${p.amount.toLocaleString()}đ | NDCK: ${p.content || 'Không thấy'} | Mã GD: ${p.trans_no || 'Không thấy'}`, 'success');
+                    showToast('Đã trích xuất dữ liệu HTML mẫu thành công!', 'success');
+
+                    const box = document.getElementById('parse-test-result');
+                    const details = document.getElementById('parse-result-details');
+                    box.style.display = 'block';
+                    details.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+                            <div><b>💵 Số Tiền:</b> <span style="color: var(--success-color); font-weight: 700;">+${p.amount.toLocaleString()}đ</span></div>
+                            <div><b>📝 Nội Dung GD:</b> <span>${p.content || '<em style="color:#94a3b8">Chưa khớp regex</em>'}</span></div>
+                            <div><b>🔑 Mã GD (Ref):</b> <span>${p.trans_no || '<em style="color:#94a3b8">Chưa khớp regex</em>'}</span></div>
+                            <div><b>📅 Thời Gian GD:</b> <span>${p.date || '<em style="color:#94a3b8">Chưa khớp regex</em>'}</span></div>
+                        </div>
+                    `;
+                } else {
+                    log(`Lỗi phân tích HTML: ${result.error}`, 'error');
+                    showToast(`Lỗi: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi kết nối: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
             }
         }
     </script>

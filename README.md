@@ -1,53 +1,59 @@
-# 🏦 MB Bank Webhook Gateway (Vercel Deployment Ready)
+# 🏦 KOS Webhook Gateway (Google Email API & Multi-Bank Support)
 
-Hệ thống API và Webhook hỗ trợ đối soát giao dịch ngân hàng **MB Bank** tự động. Code được viết bằng Python (FastAPI), tương thích hoàn toàn để deploy lên **Vercel Serverless Functions**.
+Hệ thống API và Webhook hỗ trợ đối soát giao dịch ngân hàng **tự động 100%** qua Google Email Gateway (Gmail API / IMAP). Hỗ trợ đọc thông báo biến động số dư của tất cả ngân hàng Việt Nam (**MB Bank, Vietcombank, Techcombank, ACB, VPBank, Timo Digital Bank...**). Code được viết bằng Python (FastAPI), tương thích hoàn toàn để deploy lên **Vercel Serverless Functions** & **Supabase Database**.
+
+---
 
 ## 📑 Mục lục
-1. [Xác nhận thư viện (mbbank-lib)](#1-xác-nhận-thư-viện-mbbank-lib)
-2. [Tính năng nổi bật](#2-tính-năng-nổi-bật)
-3. [Cấu trúc thư mục](#3-cấu-trúc-thư-mục)
-4. [Hướng dẫn chạy Local](#4-hướng-dẫn-chạy-local)
-5. [Hướng dẫn deploy Vercel](#5-hướng-dẫn-deploy-vercel)
-6. [Tài liệu API & Xác thực Webhook](#6-tài-liệu-api--xác-thực-webhook)
+1. [Tính Năng Nổi Bật](#1-tính-năng-nổi-bật)
+2. [Cấu Trúc Thư Mục](#2-cấu-trúc-thư-mục)
+3. [Hướng Dẫn Chạy Local](#3-hướng-dẫn-chạy-local)
+4. [Hướng Dẫn Deploy Vercel & Supabase](#4-hướng-dẫn-deploy-vercel--supabase)
+5. [Mã Hóa Bảo Mật Thông Tin Nhạy Cảm](#5-mã-hóa-bảo-mật-thông-tin-nhạy-cảm)
+6. [Tài Liệu API & Cơ Chế Push Webhook + Callback](#6-tài-liệu-api--cơ-chế-push-webhook--callback)
 
 ---
 
-## 1. Xác nhận thư viện (mbbank-lib)
-Thư viện `mbbank-lib` **hoàn toàn có thể xử lý tốt** yêu cầu này.
-* **Xác thực tự động:** Thư viện sử dụng cơ chế đăng nhập trực tiếp qua API Internet Banking cá nhân.
-* **Tự động giải mã CAPTCHA:** Tích hợp mô hình OCR AI (`mb-capcha-ocr` sử dụng ONNX Runtime) để tự động giải CAPTCHA tại local/serverless mà không cần gọi API giải captcha trả phí ngoài.
-* **Cơ chế Retry thông minh:** Khi đăng nhập, nếu CAPTCHA giải sai (mã lỗi `GW283`), thư viện sẽ tự động tải CAPTCHA mới và thử lại (mặc định tối đa 30 lần) cho đến khi đăng nhập thành công.
-* **Asynchronous:** Dự án này sử dụng `MBBankAsync` giúp xử lý bất đồng bộ (non-blocking IO) cực kỳ mượt mà trên FastAPI.
+## 1. Tính Năng Nổi Bật
+
+* **Google Email API Gateway & Multi-Bank HTML Parser:** Đọc trực tiếp email thông báo biến động số dư từ Ngân hàng qua **Gmail IMAP App Password** hoặc **Google OAuth2 API**, trích xuất mẫu HTML email và tự động duyệt đơn thanh toán 100% không lo bị captcha/block ngân hàng.
+* **Hỗ Trợ Đa Ngân Hàng:** Đã tích hợp sẵn bộ mẫu Regex trích xuất cho **MB Bank, Vietcombank, Techcombank, ACB, VPBank, Timo Digital Bank (BVBank)** và chế độ Generic cho mọi ngân hàng khác.
+* **Bộ Đọc HTML Email Mẫu Thông Minh:** Cho phép Admin paste mã HTML email mẫu từ ngân hàng vào Dashboard để test trực tiếp các mẫu Regex trích xuất (Số tiền, Nội dung, Mã GD/Ref, Ngày GD) thời gian thực.
+* **Cơ Chế Dual Notification (Webhook + Callback):**
+  - **Push Webhook (Server-to-Server):** Bắn HTTP POST bảo mật về `webhook_url` cho cả 2 sự kiện: Thành công (`payment.success`) và Thất bại/Hủy (`payment.failed`).
+  - **Browser Callback (Client Redirect):** Điều hướng trình duyệt về `callback_url` kèm tham số `status=completed` hoặc `status=cancelled`.
+* **Trang Thanh Toán Checkout PayOS-like (`/checkout`):** Giao diện Dark Mode Glassmorphism cao cấp, đếm ngược 10 phút, tự động tạo VietQR, hiệu ứng pháo hoa Confetti và âm thanh phát Web Audio khi thanh toán thành công.
+* **Mã Hóa Bảo Mật Dữ Liệu Config (`enc_v1:`):** Tự động mã hóa AES/XOR-Base64 với SHA-256 secret salt cho các thông tin nhạy cảm (Gmail Pass, OAuth Client Secret, Token, Webhook Secret) lưu trong Supabase Database.
+* **Database Linh Hoạt (Supabase REST API):** Lưu trữ cấu hình hệ thống, đơn chờ thanh toán (`pending_payments`) và lịch sử giao dịch đã xử lý (`processed_transactions`).
+* **Double-spend Prevention:** Lưu trữ các mã giao dịch đã đối soát (`trans_no`) vào DB để ngăn chặn trùng lặp.
 
 ---
 
-## 2. Tính năng nổi bật
-* **Dashboard Admin (Glassmorphism):** Giao diện quản lý cấu hình cao cấp, hỗ trợ ẩn/hiện mật khẩu, kiểm tra kết nối tài khoản ngân hàng thời gian thực, quét giao dịch thủ công.
-* **Database Linh Hoạt:** Tự động phát hiện môi trường. Dùng SQLite file khi chạy local và kết nối PostgreSQL/Supabase khi deploy Vercel.
-* **Double-spend Prevention:** Lưu trữ các mã giao dịch đã đối soát (`trans_no`) vào DB để ngăn chặn gọi callback trùng lặp (tránh lỗi cộng tiền 2 lần).
-* **Vercel Cron Job:** Endpoint `/api/cron` bảo mật cho phép cấu hình Vercel Cron chạy mỗi phút tự động đối soát giao dịch.
-* **Bảo mật Webhook:** Callback gửi đi chứa chữ ký HMAC `X-Webhook-Signature` được tạo từ các thông tin giao dịch kèm mã bảo mật `callback_secret`.
+## 2. Cấu Trúc Thư Mục
 
----
-
-## 3. Cấu trúc thư mục
 ```text
 mbbank-webhook/
-├── api/
-│   └── index.py       # FastAPI Entrypoint cho Vercel
+├── main.py            # FastAPI Entrypoint, API Payment Routes & Cron Handler
+├── email_engine.py    # Engine đọc Gmail (IMAP & OAuth2) & HTML Bank Email Parser
+├── gateway_db.py      # Logic tương tác Supabase Database REST API & Mã hóa Config
+├── schema.sql         # File SQL khởi tạo cơ sở dữ liệu Supabase
 ├── templates/
-│   ├── login.html     # Giao diện đăng nhập Admin cao cấp
-│   └── admin.html     # Dashboard Admin quản lý configs, transactions & logs
-├── database.py        # Logic tương tác DB (SQLite / PostgreSQL)
-├── requirements.txt   # Các thư viện Python cần thiết
-├── vercel.json        # File cấu hình deploy Vercel
-└── README.md          # Tài liệu hướng dẫn sử dụng
+│   ├── admin.html     # Dashboard Admin quản lý configs, HTML Email Tester & Logs
+│   ├── checkout.html  # Trang thanh toán VietQR PayOS-style cao cấp
+│   ├── login.html     # Trang đăng nhập Admin
+│   └── demo.html      # Trang demo quét QR code
+├── .env.example       # Mẫu cấu hình biến môi trường
+├── INTEGRATION.md     # Tài liệu hướng dẫn tích hợp chi tiết cho Developer
+├── vercel.json        # File cấu hình deploy Vercel Serverless Function & Cron Job
+├── requirements.txt   # Danh sách thư viện Python
+└── README.md          # Tài liệu tổng quan hệ thống
 ```
 
 ---
 
-## 4. Hướng dẫn chạy Local
-Yêu cầu máy cài sẵn Python 3.9 trở lên.
+## 3. Hướng Dẫn Chạy Local
+
+Yêu cầu máy đã cài sẵn Python 3.9 trở lên.
 
 1. Di chuyển vào thư mục dự án:
    ```bash
@@ -58,34 +64,38 @@ Yêu cầu máy cài sẵn Python 3.9 trở lên.
    python3 -m venv venv
    source venv/bin/activate
    ```
-3. Cài đặt các dependencies:
+3. Cài đặt các thư viện cần thiết:
    ```bash
    pip install -r requirements.txt
    ```
-4. Chạy ứng dụng locally bằng Uvicorn:
+4. Chạy ứng dụng bằng Uvicorn:
    ```bash
-   uvicorn main:app --reload --port 8000
+   python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
    ```
-5. Truy cập `http://localhost:8000/` để đăng nhập dashboard (mật khẩu mặc định: `admin123`).
+5. Truy cập ứng dụng:
+   - **Admin Dashboard**: [http://localhost:8000/admin](http://localhost:8000/admin) *(Mật khẩu mặc định: `admin123`)*
+   - **Demo Checkout QR**: [http://localhost:8000/demo](http://localhost:8000/demo)
 
 ---
 
-## 5. Hướng dẫn deploy Vercel
+## 4. Hướng Dẫn Deploy Vercel & Supabase
 
-Dự án đã được cấu hình sẵn file `vercel.json` để biên dịch chạy Python Serverless Function.
+### Bước 1: Chuẩn bị Cơ sở dữ liệu Supabase
+1. Đăng nhập [Supabase Dashboard](https://supabase.com) -> Mở dự án -> **SQL Editor**.
+2. Copy toàn bộ nội dung file [schema.sql](file:///Users/bo-khanh/Desktop/Src/out/mbbank-webhook/schema.sql), dán vào SQL Editor và nhấn **Run** để khởi tạo các bảng (`config`, `pending_payments`, `processed_transactions`).
+3. Vào **Settings > API** để lấy:
+   - **Project URL**: `SUPABASE_URL` (ví dụ: `https://xxxx.supabase.co`)
+   - **API Key**: `SUPABASE_KEY` (`anon` hoặc `service_role` key)
 
-### Bước 1: Chuẩn bị Cơ sở dữ liệu (PostgreSQL/Supabase)
-Vì Vercel là Serverless (Stateless - không lưu file tĩnh lâu dài), file `db.sqlite` sẽ bị xóa mỗi khi hàm khởi tạo lại. Bạn cần chuẩn bị một URL PostgreSQL (ví dụ từ Supabase).
-* Chuỗi kết nối dạng: `postgresql://postgres:password@db.supabase.co:5432/postgres`
-
-### Bước 2: Cài đặt biến môi trường trên Vercel Dashboard
+### Bước 2: Cài đặt biến môi trường trên Vercel
 Khi import dự án vào Vercel, hãy cấu hình các **Environment Variables**:
-* `DATABASE_URL`: Đường dẫn kết nối database PostgreSQL (Supabase).
-* `CRON_SECRET`: Một chuỗi ngẫu nhiên dùng để xác thực cho Cron Job (ví dụ: `my-super-cron-secret-123`).
+* `SUPABASE_URL`: URL dự án Supabase.
+* `SUPABASE_KEY`: Khóa API xác thực Supabase.
+* `ENCRYPTION_SECRET`: Mã khóa tùy chọn để mã hóa thông tin nhạy cảm trong Database.
+* `CRON_SECRET`: Chuỗi bảo mật dùng cho Vercel Cron Job tự động đọc email đối soát.
 
-### Bước 3: Cấu hình Cron Job trên Vercel (Tự động quét mỗi phút)
-Để Vercel tự động gọi quét giao dịch MB Bank mỗi phút, thêm phần cấu hình cron vào file `vercel.json` hoặc thiết lập trên Dashboard Vercel. 
-File `vercel.json` mặc định:
+### Bước 3: Cấu hình Cron Job trên Vercel (Tự động quét lúc 23:59 hàng ngày)
+File `vercel.json` đã được cấu hình sẵn Vercel Cron Job chạy 1 lần/ngày lúc 23:59 (`59 23 * * *`):
 ```json
 {
   "version": 2,
@@ -103,100 +113,102 @@ File `vercel.json` mặc định:
   ],
   "crons": [
     {
-      "path": "/api/cron?secret=MÃ_BẢO_MẬT_CRON",
-      "schedule": "*/1 * * * *"
+      "path": "/api/cron?secret=YOUR_CRON_SECRET",
+      "schedule": "59 23 * * *"
     }
   ]
 }
 ```
-*(Thay thế `MÃ_BẢO_MẬT_CRON` bằng giá trị của biến `CRON_SECRET` đã cài).*
 
 ---
 
-## 6. Tài liệu API & Xác thực Webhook
+## 5. Mã Hóa Bảo Mật Thông Tin Nhạy Cảm
 
-### A. Đăng ký kiểm tra QR Code (`POST /api/webhook/check-qr`)
-Khi hệ thống bên ngoài tạo mã QR cho người dùng chuyển khoản, hãy gửi yêu cầu vào API này để đăng ký đối chiếu.
+Hệ thống tích hợp sẵn cơ chế mã hóa tự động cho các tham số nhạy cảm trong Database (`admin_password`, `gmail_app_password`, `gmail_client_secret`, `gmail_refresh_token`, `callback_secret`):
+* Dữ liệu được mã hóa bằng SHA-256 secret salt + XOR cipher + Base64 với tiền tố `enc_v1:`.
+* Khi gọi `get_config()`, hệ thống tự động giải mã trả về chuỗi gốc cho ứng dụng.
+* Hỗ trợ tương thích ngược hoàn toàn với dữ liệu chưa mã hóa.
+
+---
+
+## 6. Tài Liệu API & Cơ Chế Push Webhook + Callback
+
+Xem chi tiết trong file **[INTEGRATION.md](file:///Users/bo-khanh/Desktop/Src/out/mbbank-webhook/INTEGRATION.md)**.
+
+### A. Tạo Đơn Hàng Thanh Toán (`POST /api/v1/payment/create`)
+Website của bạn gửi request tạo đơn hàng thanh toán vào KOS Gateway:
 
 * **Payload mẫu:**
   ```json
   {
-    "reference_id": "ORDER_12345",
-    "amount": 50000,
-    "content": "PaidLunch anhkhang",
-    "callback_url": "https://website-cua-ban.com/api/payment-callback"
+    "order_id": "DH1001",
+    "amount": 500000,
+    "content": "PAY DH1001",
+    "callback_url": "https://myshop.com/checkout/result",
+    "webhook_url": "https://myshop.com/api/kos-webhook"
   }
   ```
 * **Response mẫu:**
   ```json
   {
     "success": true,
-    "payment_id": "c7a8b981-d102-4bb3-9ef4-d3a5e8c1ab2f",
     "status": "pending",
-    "message": "QR registered. System is actively scanning for transaction."
+    "order_id": "DH1001",
+    "payment_id": "c7a8b981-d102-4bb3-9ef4-d3a5e8c1ab2f",
+    "amount": 500000.0,
+    "content": "PAY DH1001",
+    "checkout_url": "https://kos-gateway.vercel.app/checkout?orderId=DH1001&amount=500000&content=PAY+DH1001...",
+    "qr_code_url": "https://img.vietqr.io/image/MB-0123456789-compact2.png?amount=500000&addInfo=PAY+DH1001"
   }
   ```
 
-### B. Callback Webhook gửi về Website bên ngoài (`POST callback_url`)
-Khi tìm thấy giao dịch chuyển tiền khớp với `content` và `amount` đã đăng ký, hệ thống sẽ thực hiện gọi callback đến URL đã đăng ký.
+---
 
-* **Payload mẫu:**
+### B. Push Webhook Event (`POST webhook_url` - Server to Server)
+KOS Gateway sẽ bắn HTTP POST kèm chữ ký bảo mật SHA-256 (`X-Webhook-Signature`) về `webhook_url` của bạn:
+
+* **1. Khi Thanh Toán Thành Công (`payment.success`):**
   ```json
   {
-    "status": "success",
-    "reference_id": "ORDER_12345",
+    "event": "payment.success",
+    "status": "completed",
+    "order_id": "DH1001",
+    "reference_id": "DH1001",
     "payment_id": "c7a8b981-d102-4bb3-9ef4-d3a5e8c1ab2f",
-    "amount": 50000.0,
-    "trans_no": "FT24018239480",
-    "description": "PaidLunch anhkhang chuyen khoan",
-    "date": "01/07/2026 14:05:22",
-    "timestamp": 1782895522,
+    "amount": 500000.0,
+    "trans_no": "FT24081099882211",
+    "description": "PAY DH1001",
+    "date": "10/08/2026 09:45:12",
+    "timestamp": 1774425742,
     "signature": "8a7f92b...e4a821"
   }
   ```
-* **Bảo mật & Xác thực Chữ ký (Signature Verification):**
-  Để tránh hacker giả mạo callback gửi tiền thành công, server của bạn **phải xác minh** chữ ký gửi kèm trong Header `X-Webhook-Signature` hoặc trường `signature`.
-  
-  **Cách tạo chữ ký trên Server của bạn để so khớp:**
-  1. Lấy chuỗi ký tự theo thứ tự: `reference_id + payment_id + amount + trans_no + callback_secret`
-  2. Băm chuỗi trên bằng thuật toán **SHA-256**.
-  3. So khớp chuỗi sau khi băm với `signature` được gửi đến. Nếu trùng khớp, giao dịch là hợp lệ.
 
-  *Ví dụ code Python xác thực chữ ký:*
-  ```python
-  import hashlib
-  
-  secret = "MÃ_CALLBACK_SECRET_ĐÃ_CẤU_HÌNH"
-  data = req.json()
-  
-  sign_str = f"{data['reference_id']}{data['payment_id']}{data['amount']}{data['trans_no']}{secret}"
-  expected_signature = hashlib.sha256(sign_str.encode()).hexdigest()
-  
-  if data['signature'] == expected_signature:
-      # Giao dịch hợp lệ, tiến hành cập nhật đơn hàng
-      pass
-  ```
-
-### C. Đối soát chủ động không dùng Cron Job (`GET /api/check-payment/{reference_id}`)
-Nếu bạn **không muốn sử dụng Cron Job** chạy ngầm liên tục, bạn có thể thiết lập hệ thống kiểm tra chủ động (Active Pulling):
-
-1. **Cách hoạt động:**
-   * Khi người dùng ở giao diện thanh toán (đang hiển thị QR code), website của bạn (frontend) có thể gửi request định kỳ (ví dụ: mỗi 5-10 giây) hoặc hiển thị nút **"Tôi đã chuyển khoản"**.
-   * Khi người dùng nhấp vào nút hoặc theo chu kỳ polling, frontend gọi đến: `GET /api/check-payment/{reference_id}`.
-   * Khi nhận được request này, Gateway sẽ ngay lập tức đăng nhập MB Bank, quét các giao dịch mới nhất trong ngày, đối soát, bắn callback (nếu khớp và chưa xử lý), và trả ngay trạng thái về cho client.
-
-* **Response mẫu (Khi chưa thanh toán):**
+* **2. Khi Thanh Toán Bị Hủy / Thất Bại (`payment.failed`):**
   ```json
   {
-    "reference_id": "ORDER_12345",
-    "status": "pending"
+    "event": "payment.failed",
+    "status": "cancelled",
+    "order_id": "DH1001",
+    "reference_id": "DH1001",
+    "payment_id": "c7a8b981-d102-4bb3-9ef4-d3a5e8c1ab2f",
+    "amount": 500000.0,
+    "trans_no": "",
+    "description": "Giao dịch bị hủy bởi người dùng",
+    "date": "",
+    "timestamp": 1774425742,
+    "signature": "8a7f92b...e4a821"
   }
   ```
-* **Response mẫu (Khi đã thanh toán thành công):**
-  ```json
-  {
-    "reference_id": "ORDER_12345",
-    "status": "completed"
-  }
-  ```
-  *(Khi chuyển sang `completed`, đồng thời webhook callback ở phần B cũng đã được tự động kích hoạt gửi về backend của bạn).*
+
+---
+
+### C. Hủy Đơn Hàng (`POST /api/v1/payment/cancel`)
+* **Request:** `{"order_id": "DH1001", "reason": "Người dùng đổi ý"}`
+* **Response:** `{"success": true, "order_id": "DH1001", "status": "cancelled"}`
+
+---
+
+### D. Kiểm Tra Trạng Thái Chủ Động (`GET /api/check-payment/{order_id}`)
+* **Request:** `GET /api/check-payment/DH1001`
+* **Response:** `{"reference_id": "DH1001", "status": "completed"}` (hoặc `pending`, `cancelled`).

@@ -591,7 +591,7 @@
                 <div class="info-list">
                     <div class="info-row">
                         <span class="info-lbl">Ngân hàng</span>
-                        <span class="info-val">MB Bank (Quân Đội)</span>
+                        <span class="info-val" id="val-bank-name">MB Bank (Quân Đội)</span>
                     </div>
                     <div class="info-row">
                         <span class="info-lbl">Chủ tài khoản</span>
@@ -687,10 +687,23 @@
         const amount = parseFloat("{{ amount }}");
         const content = "{{ content }}";
         const callbackUrl = "{{ callback }}";
-        const cancelUrl = "{{ cancel_url }}";
         const orderCode = "{{ orderCode }}";
         const orderId = "{{ orderId }}";
         const accountNo = "{{ account_number }}";
+        const bankCode = "{{ bank_code or 'MB' }}";
+
+        const BANK_NAMES = {
+            "MB": "MB Bank (Quân Đội)",
+            "TIMO": "Timo Digital Bank (BVBank)",
+            "VCB": "Vietcombank (Ngoại Thương)",
+            "TCB": "Techcombank (Kỹ Thương)",
+            "ACB": "ACB (Á Châu)",
+            "VPB": "VPBank (Thịnh Vượng)",
+            "TPB": "TPBank (Tiên Phong)",
+            "BIDV": "BIDV (Đầu tư & Phát triển)",
+            "CTG": "VietinBank (Công Thương)",
+            "STB": "Sacombank (Sài Gòn Thương Tín)"
+        };
 
         let pollingInterval = null;
         let timerInterval = null;
@@ -702,13 +715,19 @@
         const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
         document.addEventListener("DOMContentLoaded", () => {
+            // Set bank name text
+            const bankElem = document.getElementById("val-bank-name");
+            if (bankElem) {
+                bankElem.innerText = BANK_NAMES[bankCode] || bankCode;
+            }
+
             // Set formatted currency
             document.getElementById("amount-text").innerText = formatCurrency(amount);
             document.getElementById("val-amount-raw").innerText = formatCurrency(amount);
 
             // Construct and display VietQR compact image
             const encodedContent = encodeURIComponent(content);
-            const qrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact.png?amount=${amount}&addInfo=${encodedContent}`;
+            const qrUrl = `https://img.vietqr.io/image/${bankCode}-${accountNo}-compact.png?amount=${amount}&addInfo=${encodedContent}`;
             document.getElementById("vietqr-image").src = qrUrl;
 
             // Start countdown timer
@@ -900,7 +919,7 @@
         // Cancellation action
         function cancelPayment() {
             if (confirm("Bạn có chắc chắn muốn huỷ giao dịch này?")) {
-                const redirectUrl = getRedirectUrl(callbackUrl || cancelUrl, false);
+                const redirectUrl = getRedirectUrl(callbackUrl, false);
                 window.location.href = redirectUrl;
             }
         }
@@ -978,10 +997,6 @@
         function getRedirectUrl(base, isSuccess) {
             if (!base) return '/';
 
-            if (!isSuccess && cancelUrl) {
-                return cancelUrl;
-            }
-
             try {
                 const url = new URL(base);
                 if (orderId && !url.searchParams.has('orderId')) {
@@ -990,8 +1005,8 @@
                 if (orderCode && !url.searchParams.has('orderCode')) {
                     url.searchParams.set('orderCode', orderCode);
                 }
+                url.searchParams.set('status', isSuccess ? 'completed' : 'cancelled');
                 if (!isSuccess) {
-                    url.searchParams.set('status', 'cancelled');
                     url.searchParams.set('cancel', 'true');
                 }
                 return url.toString();
@@ -1006,8 +1021,9 @@
                     res += `${connector}orderCode=${encodeURIComponent(orderCode)}`;
                     connector = '&';
                 }
+                res += `${connector}status=${isSuccess ? 'completed' : 'cancelled'}`;
                 if (!isSuccess) {
-                    res += `${connector}status=cancelled&cancel=true`;
+                    res += `&cancel=true`;
                 }
                 return res;
             }

@@ -1,4 +1,3 @@
-mbbank-lib==0.3.0
 fastapi>=0.100.0
 jinja2>=3.0.0
 python-multipart>=0.0.6

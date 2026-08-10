@@ -2,8 +2,63 @@ import os
 import time
 import logging
 import requests
+import base64
+import hashlib
 
 logger = logging.getLogger("mbbank-webhook.database")
+
+# Encryption Secret Key derived from environment variable
+SECRET_SALT = os.environ.get("ENCRYPTION_SECRET") or os.environ.get("SUPABASE_KEY") or os.environ.get("CALLBACK_SECRET") or "kos-secret-key-salt-2026"
+
+SENSITIVE_CONFIG_KEYS = {
+    "admin_password",
+    "gmail_app_password",
+    "gmail_client_secret",
+    "gmail_refresh_token",
+    "callback_secret"
+}
+
+def _derive_key(key_name: str) -> bytes:
+    """Derives a byte key for the specific config key using SHA-256."""
+    combined = f"{SECRET_SALT}:{key_name}".encode("utf-8")
+    return hashlib.sha256(combined).digest()
+
+def encrypt_val(key_name: str, val: str) -> str:
+    """Encrypts a sensitive string value into a base64 encoded string prefixed with 'enc_v1:'."""
+    if not val or not isinstance(val, str):
+        return val
+    if val.startswith("enc_v1:"):
+        return val
+    
+    key = _derive_key(key_name)
+    val_bytes = val.encode("utf-8")
+    cipher_bytes = bytearray()
+    for i, b in enumerate(val_bytes):
+        k_byte = key[i % len(key)]
+        cipher_bytes.append(b ^ k_byte)
+    
+    encoded = base64.b64encode(cipher_bytes).decode("utf-8")
+    return f"enc_v1:{encoded}"
+
+def decrypt_val(key_name: str, val: str) -> str:
+    """Decrypts an encrypted string value prefixed with 'enc_v1:'."""
+    if not val or not isinstance(val, str):
+        return val
+    if not val.startswith("enc_v1:"):
+        return val
+    
+    try:
+        raw_b64 = val[7:]
+        cipher_bytes = base64.b64decode(raw_b64)
+        key = _derive_key(key_name)
+        plain_bytes = bytearray()
+        for i, b in enumerate(cipher_bytes):
+            k_byte = key[i % len(key)]
+            plain_bytes.append(b ^ k_byte)
+        return plain_bytes.decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to decrypt config value for {key_name}: {e}")
+        return val
 
 # Load .env file if it exists (for local development)
 if os.path.exists(".env"):
@@ -13,13 +68,19 @@ if os.path.exists(".env"):
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
-                    os.environ[k.strip()] = v.strip()
+                    val = v.strip()
+                    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                        val = val[1:-1]
+                    os.environ[k.strip()] = val
     except Exception as e:
         logger.warning(f"Could not load .env file: {e}")
 
 # Supabase Configurations
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+raw_url = os.environ.get("SUPABASE_URL") or ""
+raw_key = os.environ.get("SUPABASE_KEY") or ""
+
+SUPABASE_URL = raw_url.strip().strip('"').strip("'")
+SUPABASE_KEY = raw_key.strip().strip('"').strip("'")
 
 db_initialization_error = None
 
@@ -66,39 +127,113 @@ def init_db():
     try:
         default_configs = {
             "admin_password": os.environ.get("ADMIN_PASSWORD", "admin123"),
-            "mb_username": os.environ.get("MB_USERNAME", ""),
-            "mb_password": os.environ.get("MB_PASSWORD", ""),
+            "mb_bank_code": os.environ.get("MB_BANK_CODE", "MB"),
             "mb_account_number": os.environ.get("MB_ACCOUNT_NUMBER", ""),
+            "mb_account_name": os.environ.get("MB_ACCOUNT_NAME", "CỔNG THANH TOÁN NGÂN HÀNG"),
             "default_callback_url": os.environ.get("DEFAULT_CALLBACK_URL", ""),
             "callback_secret": os.environ.get("CALLBACK_SECRET", "super-secret-callback-token"),
             "mb_system_active": "true",
-            "bank_scan_interval": "30"
+            "bank_scan_interval": "30",
+            "email_gateway_active": "true",
+            "email_auth_method": "imap",
+            "gmail_address": os.environ.get("GMAIL_ADDRESS", ""),
+            "gmail_app_password": os.environ.get("GMAIL_APP_PASSWORD", ""),
+            "gmail_client_id": os.environ.get("GMAIL_CLIENT_ID", ""),
+            "gmail_client_secret": os.environ.get("GMAIL_CLIENT_SECRET", ""),
+            "gmail_refresh_token": os.environ.get("GMAIL_REFRESH_TOKEN", ""),
+            "email_sender_filter": "notification@mbbank.com.vn",
+            "email_html_template": "",
+            "email_parser_regex_amount": r"(?:Số tiền|Số tiền GD|Giao dịch|Số tiền tăng|Cộng tài khoản|Số tiền biến động)[:\s]*\+?\s*([\d\.,]+)\s*(?:VND|VNĐ|đ)?",
+            "email_parser_regex_content": r"(?:Nội dung|Nội dung chuyển khoản|NDCK|Nội dung GD)[:\s]*([^\n<]+)",
+            "email_parser_regex_trans_no": r"(?:Mã giao dịch|Mã GD|Số FT|Ref No|So FT|Số HĐ)[:\s]*([A-Z0-9\.\-]+)",
+            "email_parser_regex_date": r"(?:Thời gian|Ngày giao dịch|Ngày GD)[:\s]*([\d\/\:\s\-]+)"
         }
         for key, val in default_configs.items():
             if get_config(key) is None:
                 set_config(key, val)
+        
+        # Always synchronize ADMIN_PASSWORD and Google Client ID/Secret if explicitly set in environment
+        env_admin_pass = os.environ.get("ADMIN_PASSWORD")
+        if env_admin_pass:
+            set_config("admin_password", env_admin_pass)
+            
+        env_client_id = os.environ.get("GMAIL_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
+        if env_client_id:
+            set_config("gmail_client_id", env_client_id)
+            
+        env_client_secret = os.environ.get("GMAIL_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
+        if env_client_secret:
+            set_config("gmail_client_secret", env_client_secret)
     except Exception as e:
         db_initialization_error = f"Error populating default configurations: {e}"
 
 # ----------------- Configuration Helpers -----------------
 
+ENV_KEYS_MAP = {
+    "admin_password": "ADMIN_PASSWORD",
+    "callback_secret": "CALLBACK_SECRET",
+    "default_callback_url": "DEFAULT_CALLBACK_URL",
+    "mb_bank_code": "MB_BANK_CODE",
+    "mb_account_number": "MB_ACCOUNT_NUMBER",
+    "mb_account_name": "MB_ACCOUNT_NAME",
+    "gmail_address": "GMAIL_ADDRESS",
+    "gmail_app_password": "GMAIL_APP_PASSWORD",
+    "gmail_client_id": "GMAIL_CLIENT_ID",
+    "gmail_client_secret": "GMAIL_CLIENT_SECRET",
+    "gmail_refresh_token": "GMAIL_REFRESH_TOKEN",
+    "email_gateway_active": "EMAIL_GATEWAY_ACTIVE",
+    "email_auth_method": "EMAIL_AUTH_METHOD",
+    "email_sender_filter": "EMAIL_SENDER_FILTER",
+    "email_html_template": "EMAIL_HTML_TEMPLATE",
+    "email_parser_regex_amount": "EMAIL_PARSER_REGEX_AMOUNT",
+    "email_parser_regex_content": "EMAIL_PARSER_REGEX_CONTENT",
+    "email_parser_regex_trans_no": "EMAIL_PARSER_REGEX_TRANS_NO",
+    "email_parser_regex_date": "EMAIL_PARSER_REGEX_DATE",
+    "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+    "telegram_chat_id": "TELEGRAM_CHAT_ID",
+    "telegram_notify_active": "TELEGRAM_NOTIFY_ACTIVE",
+}
+
 def get_config(key, default=None):
-    if db_initialization_error:
-        return default
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=value"
-    try:
-        r = requests.get(url, headers=get_supabase_headers())
-        if r.status_code == 200:
-            data = r.json()
-            if data:
-                return data[0]["value"]
-    except Exception as e:
-        logger.error(f"Supabase get_config error: {e}")
+    if not db_initialization_error:
+        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=value"
+        try:
+            r = requests.get(url, headers=get_supabase_headers())
+            if r.status_code == 200:
+                data = r.json()
+                if data and data[0]["value"] is not None and data[0]["value"] != "":
+                    raw_val = data[0]["value"]
+                    if key in SENSITIVE_CONFIG_KEYS:
+                        return decrypt_val(key, raw_val)
+                    return raw_val
+        except Exception as e:
+            logger.error(f"Supabase get_config error: {e}")
+
+    # Fallback to Environment Variables (.env)
+    env_var_name = ENV_KEYS_MAP.get(key)
+    if env_var_name:
+        env_val = os.environ.get(env_var_name)
+        if env_val:
+            return env_val
+            
+    if key == "gmail_client_id":
+        alias_val = os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("NEXT_PUBLIC_GOOGLE_CLIENT_ID")
+        if alias_val:
+            return alias_val
+    if key == "gmail_client_secret":
+        alias_val = os.environ.get("GOOGLE_CLIENT_SECRET")
+        if alias_val:
+            return alias_val
+
     return default
 
 def set_config(key, value):
     if db_initialization_error:
         return
+    val_to_save = str(value)
+    if key in SENSITIVE_CONFIG_KEYS:
+        val_to_save = encrypt_val(key, val_to_save)
+
     # Check if already exists to do PATCH (Update) or POST (Insert)
     exist_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=key"
     try:
@@ -106,11 +241,11 @@ def set_config(key, value):
         if r_exist.status_code == 200 and r_exist.json():
             # Update
             url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}"
-            requests.patch(url, json={"value": str(value)}, headers=get_supabase_headers())
+            requests.patch(url, json={"value": val_to_save}, headers=get_supabase_headers())
         else:
             # Insert
             url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config"
-            requests.post(url, json={"key": key, "value": str(value)}, headers=get_supabase_headers())
+            requests.post(url, json={"key": key, "value": val_to_save}, headers=get_supabase_headers())
     except Exception as e:
         logger.error(f"Supabase set_config error: {e}")
 
@@ -121,7 +256,14 @@ def get_all_configs():
     try:
         r = requests.get(url, headers=get_supabase_headers())
         if r.status_code == 200:
-            return {row["key"]: row["value"] for row in r.json()}
+            res = {}
+            for row in r.json():
+                k = row["key"]
+                v = row["value"]
+                if k in SENSITIVE_CONFIG_KEYS:
+                    v = decrypt_val(k, v)
+                res[k] = v
+            return res
     except Exception as e:
         logger.error(f"Supabase get_all_configs error: {e}")
     return {}
@@ -171,7 +313,7 @@ def get_recent_processed_transactions(limit=20):
 
 # ----------------- Pending Payments -----------------
 
-def add_pending_payment(payment_id, reference_id, amount, content, callback_url):
+def add_pending_payment(payment_id, reference_id, amount, content, callback_url, webhook_url=""):
     if db_initialization_error:
         return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments"
@@ -180,11 +322,23 @@ def add_pending_payment(payment_id, reference_id, amount, content, callback_url)
         "reference_id": reference_id,
         "amount": float(amount),
         "content": content,
-        "callback_url": callback_url,
+        "callback_url": callback_url or "",
+        "webhook_url": webhook_url or "",
         "status": "pending"
     }
     try:
-        requests.post(url, json=payload, headers=get_supabase_headers())
+        r = requests.post(url, json=payload, headers=get_supabase_headers())
+        if r.status_code not in [200, 201]:
+            # Fallback for legacy database schema if webhook_url column does not exist yet
+            payload_legacy = {
+                "id": payment_id,
+                "reference_id": reference_id,
+                "amount": float(amount),
+                "content": content,
+                "callback_url": callback_url or webhook_url or "",
+                "status": "pending"
+            }
+            requests.post(url, json=payload_legacy, headers=get_supabase_headers())
     except Exception as e:
         logger.error(f"Supabase add_pending_payment error: {e}")
 
@@ -221,6 +375,20 @@ def get_pending_payment_status(reference_id):
                 return data[0]["status"]
     except Exception as e:
         logger.error(f"Supabase get_pending_payment_status error: {e}")
+    return None
+
+def get_pending_payment_by_ref(reference_id):
+    if db_initialization_error:
+        return None
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{reference_id}&order=created_at.desc&limit=1"
+    try:
+        r = requests.get(url, headers=get_supabase_headers())
+        if r.status_code == 200:
+            data = r.json()
+            if data:
+                return data[0]
+    except Exception as e:
+        logger.error(f"Supabase get_pending_payment_by_ref error: {e}")
     return None
 
 def delete_pending_payment(payment_id):

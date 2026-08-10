@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS pending_payments (
     amount REAL NOT NULL,
     content TEXT NOT NULL,
     callback_url TEXT,
+    webhook_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) DEFAULT 'pending'
 );
@@ -37,11 +38,23 @@ CREATE INDEX IF NOT EXISTS idx_processed_trans_date ON processed_transactions(pr
 -- 5. Insert default configurations (if not already existing)
 INSERT INTO config (key, value) VALUES 
 ('admin_password', 'admin123'),
-('mb_username', ''),
-('mb_password', ''),
 ('mb_account_number', ''),
+('mb_account_name', 'CỔNG THANH TOÁN NGÂN HÀNG'),
 ('default_callback_url', ''),
-('callback_secret', 'super-secret-callback-token')
+('callback_secret', 'super-secret-callback-token'),
+('email_gateway_active', 'true'),
+('email_auth_method', 'imap'),
+('gmail_address', ''),
+('gmail_app_password', ''),
+('gmail_client_id', ''),
+('gmail_client_secret', ''),
+('gmail_refresh_token', ''),
+('email_sender_filter', 'notification@mbbank.com.vn'),
+('email_html_template', ''),
+('email_parser_regex_amount', '(?:Số tiền|Số tiền GD|Giao dịch|Số tiền tăng|Cộng tài khoản|Số tiền biến động)[:\s]*\+?\s*([\d\.,]+)\s*(?:VND|VNĐ|đ)?'),
+('email_parser_regex_content', '(?:Nội dung|Nội dung chuyển khoản|NDCK|Nội dung GD)[:\s]*([^\n<]+)'),
+('email_parser_regex_trans_no', '(?:Mã giao dịch|Mã GD|Số FT|Ref No|So FT|Số HĐ)[:\s]*([A-Z0-9\.\-]+)'),
+('email_parser_regex_date', '(?:Thời gian|Ngày giao dịch|Ngày GD)[:\s]*([\d\/\:\s\-]+)')
 ON CONFLICT (key) DO NOTHING;
 
 -- =====================================================================

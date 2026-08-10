@@ -10,16 +10,19 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from urllib.parse import quote
 import httpx
+import requests
 from pydantic import BaseModel
 
 import gateway_db
+import email_engine
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mbbank-webhook")
 
-app = FastAPI(title="MB Bank Webhook Gateway", version="0.3.0")
+app = FastAPI(title="KOS Admin Gateway", version="0.3.0")
 
 # Setup templates path (in the same directory)
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
@@ -86,11 +89,6 @@ async def check_db_initialization(request: Request, call_next):
             return HTMLResponse(content=html_content, status_code=500)
     return await call_next(request)
 
-# Global variables for session/cache
-# In production, use database configs or redis, but we'll fetch from db config table
-# We keep active bank clients cached to avoid re-authenticating every request
-bank_clients = {}  # username -> MBBank
-
 # Initialize Database on startup
 @app.on_event("startup")
 def startup_db():
@@ -100,26 +98,14 @@ def startup_db():
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
 
-def run_in_thread(func, *args, **kwargs):
-    """
-    Wraps a synchronous function call inside a background thread pool,
-    ensuring that a thread-local asyncio event loop is set up to support
-    mbbank-lib's internal WASM/Go-js event loop needs.
-    """
-    import asyncio
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return func(*args, **kwargs)
-
 # Session Helper (simple secure cookie-based auth)
 SESSION_TOKEN = str(uuid.uuid4())
 
 def get_current_user(request: Request):
     token = request.cookies.get("session_token")
     if not token or token != SESSION_TOKEN:
+        if request.url.path.startswith("/api/") or request.url.path.startswith("/admin/config"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Phiên đăng nhập đã hết hạn. Vui lòng tải lại trang để đăng nhập lại.")
         raise HTTPException(
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             headers={"Location": "/login"}
@@ -128,21 +114,46 @@ def get_current_user(request: Request):
 
 # ----------------- Models -----------------
 
-class QRRequest(BaseModel):
-    reference_id: str
+class CreatePaymentRequest(BaseModel):
+    order_id: Optional[str] = None
+    reference_id: Optional[str] = None
     amount: float
     content: str
-    callback_url: Optional[str] = None
+    callback_url: Optional[str] = ""
+    webhook_url: Optional[str] = ""
+
+class CancelPaymentRequest(BaseModel):
+    order_id: Optional[str] = None
+    reference_id: Optional[str] = None
+    reason: Optional[str] = "Giao dịch bị hủy"
+
+class QRRequest(BaseModel):
+    order_id: Optional[str] = None
+    reference_id: Optional[str] = None
+    amount: float
+    content: str
+    callback_url: Optional[str] = ""
+    webhook_url: Optional[str] = ""
+
+class ParseEmailRequest(BaseModel):
+    html_content: str
+    regex_amount: Optional[str] = None
+    regex_content: Optional[str] = None
+    regex_trans_no: Optional[str] = None
+    regex_date: Optional[str] = None
 
 class ConfigUpdate(BaseModel):
-    mb_username: str
-    mb_password: str
+    mb_bank_code: Optional[str] = "MB"
     mb_account_number: Optional[str] = ""
+    mb_account_name: Optional[str] = ""
     default_callback_url: Optional[str] = ""
-    callback_secret: str
-    admin_password: str
-    mb_system_active: Optional[str] = "true"
-    bank_scan_interval: Optional[str] = "30"
+    email_auth_method: Optional[str] = "oauth2"
+    gmail_address: Optional[str] = ""
+    gmail_app_password: Optional[str] = ""
+    gmail_refresh_token: Optional[str] = ""
+    telegram_bot_token: Optional[str] = ""
+    telegram_chat_id: Optional[str] = ""
+    telegram_notify_active: Optional[str] = "true"
 
 # ----------------- Auth Routes -----------------
 
@@ -156,8 +167,10 @@ async def login_get(request: Request):
 
 @app.post("/login")
 async def login_post(request: Request, password: str = Form(...)):
-    admin_pass = gateway_db.get_config("admin_password", "admin123")
-    if password == admin_pass:
+    env_admin_pass = os.environ.get("ADMIN_PASSWORD")
+    db_admin_pass = gateway_db.get_config("admin_password", "admin123")
+    
+    if (env_admin_pass and password == env_admin_pass) or (password == db_admin_pass):
         response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
         response.set_cookie(key="session_token", value=SESSION_TOKEN, httponly=True, max_age=3600*24)
         return response
@@ -189,22 +202,28 @@ async def admin_get(request: Request, authenticated: bool = Depends(get_current_
 @app.get("/demo", response_class=HTMLResponse)
 async def demo_get(request: Request):
     """Public demo page representing the checkout QR code page for users."""
-    account_number = gateway_db.get_config("mb_account_number") or gateway_db.get_config("mb_username")
-    
-    # Attempt to fetch owner name from active client session
-    account_name = "Chưa kết nối Bank"
-    username = gateway_db.get_config("mb_username")
-    if username and username in bank_clients:
-        try:
-            client = bank_clients[username]
-            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
-            account_name = user_info.cust.nm
-        except Exception:
-            pass
+    account_number = gateway_db.get_config("mb_account_number", "0123456789")
+    account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
+    bank_code = gateway_db.get_config("mb_bank_code", "MB")
+    bank_names = {
+        "MB": "MB Bank (Ngân Hàng Quân Đội)",
+        "TIMO": "Timo Digital Bank (BVBank)",
+        "VCB": "Vietcombank (Ngoại Thương)",
+        "TCB": "Techcombank (Kỹ Thương)",
+        "ACB": "ACB (Á Châu)",
+        "VPB": "VPBank (Thịnh Vượng)",
+        "TPB": "TPBank (Tiên Phong)",
+        "BIDV": "BIDV",
+        "CTG": "VietinBank",
+        "STB": "Sacombank"
+    }
+    bank_name = bank_names.get(bank_code, "MB Bank")
             
     return render_template(request, "demo.html", {
         "account_number": account_number,
-        "account_name": account_name
+        "account_name": account_name,
+        "bank_code": bank_code,
+        "bank_name": bank_name
     })
 
 @app.get("/checkout", response_class=HTMLResponse)
@@ -213,7 +232,6 @@ async def checkout_get(
     amount: float = 0.0,
     content: str = "",
     callback: str = "",
-    cancel_url: str = "",
     orderCode: str = "",
     orderId: str = "",
     webhook_url: Optional[str] = None
@@ -235,7 +253,8 @@ async def checkout_get(
                 reference_id=orderId,
                 amount=amount,
                 content=content,
-                callback_url=webhook_url
+                callback_url=callback,
+                webhook_url=webhook_url or ""
             )
             # Trigger async check to quickly see if it's already in the bank
             asyncio.create_task(perform_transaction_check())
@@ -243,97 +262,124 @@ async def checkout_get(
         except Exception as e:
             logger.error(f"Error registering pending payment in checkout: {e}")
 
-    account_number = gateway_db.get_config("mb_account_number") or gateway_db.get_config("mb_username")
-    
-    # Attempt to fetch owner name from active client session
-    account_name = "Chưa kết nối Bank"
-    username = gateway_db.get_config("mb_username")
-    if username and username in bank_clients:
-        try:
-            client = bank_clients[username]
-            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
-            account_name = user_info.cust.nm
-        except Exception:
-            pass
+    account_number = gateway_db.get_config("mb_account_number", "0123456789")
+    account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
+    bank_code = gateway_db.get_config("mb_bank_code", "MB")
 
     return render_template(request, "checkout.html", {
         "amount": amount,
         "content": content,
         "callback": callback,
-        "cancel_url": cancel_url,
         "orderCode": orderCode,
         "orderId": orderId,
         "account_number": account_number,
-        "account_name": account_name
+        "account_name": account_name,
+        "bank_code": bank_code
     })
 
 @app.post("/admin/config")
 async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get_current_user)):
     try:
-        gateway_db.set_config("mb_username", cfg.mb_username)
-        gateway_db.set_config("mb_password", cfg.mb_password)
+        gateway_db.set_config("mb_bank_code", cfg.mb_bank_code or "MB")
         gateway_db.set_config("mb_account_number", cfg.mb_account_number or "")
+        gateway_db.set_config("mb_account_name", cfg.mb_account_name or "")
         gateway_db.set_config("default_callback_url", cfg.default_callback_url or "")
-        gateway_db.set_config("callback_secret", cfg.callback_secret)
-        gateway_db.set_config("admin_password", cfg.admin_password)
-        gateway_db.set_config("mb_system_active", cfg.mb_system_active or "true")
-        gateway_db.set_config("bank_scan_interval", cfg.bank_scan_interval or "30")
-        
-        # Invalidate cached client to force refresh with new credentials
-        if cfg.mb_username in bank_clients:
-            del bank_clients[cfg.mb_username]
-            
-        return {"success": True}
+        gateway_db.set_config("email_auth_method", cfg.email_auth_method or "oauth2")
+        if cfg.gmail_address:
+            gateway_db.set_config("gmail_address", cfg.gmail_address)
+        if cfg.gmail_app_password:
+            gateway_db.set_config("gmail_app_password", cfg.gmail_app_password)
+        if cfg.gmail_refresh_token:
+            gateway_db.set_config("gmail_refresh_token", cfg.gmail_refresh_token)
+        if cfg.telegram_bot_token is not None:
+            gateway_db.set_config("telegram_bot_token", cfg.telegram_bot_token)
+        if cfg.telegram_chat_id is not None:
+            gateway_db.set_config("telegram_chat_id", cfg.telegram_chat_id)
+        if cfg.telegram_notify_active is not None:
+            gateway_db.set_config("telegram_notify_active", cfg.telegram_notify_active)
+        return {"success": True, "message": "Đã lưu cấu hình tài khoản ngân hàng, Gmail & Telegram Bot thành công!"}
     except Exception as e:
+        logger.error(f"Error saving admin configs: {e}")
         return {"success": False, "error": str(e)}
 
 # ----------------- API Endpoints -----------------
 
-async def get_mb_client() -> "MBBank":
-    """Helper to instantiate and return cached/new MBBank client."""
-    from mbbank import MBBank
-    username = gateway_db.get_config("mb_username")
-    password = gateway_db.get_config("mb_password")
+@app.post("/api/test-email-connection")
+async def test_email_connection(authenticated: bool = Depends(get_current_user)):
+    """Tests connection to Gmail (IMAP or OAuth2) and parses recent emails."""
+    auth_method = gateway_db.get_config("email_auth_method", "imap")
+    sender_filter = gateway_db.get_config("email_sender_filter", "")
     
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Vui lòng cấu hình tài khoản MB Bank trong Dashboard Admin trước.")
-        
-    if username in bank_clients:
-        return bank_clients[username]
-        
-    # Instantiate new client
-    client = MBBank(username=username, password=password)
-    bank_clients[username] = client
-    return client
-
-@app.post("/api/test-mb")
-async def test_mb_connection(authenticated: bool = Depends(get_current_user)):
-    """Tests connection to MB Bank, retrieving username and account balance."""
     try:
-        client = await get_mb_client()
-        # Try fetching with current session
-        try:
-            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
-            balances = await asyncio.to_thread(run_in_thread, client.getBalance)
-        except Exception as conn_err:
-            logger.warning(f"MB connection expired/error: {conn_err}. Attempting to clear session and re-authenticate...")
-            client.sessionId = None
-            user_info = await asyncio.to_thread(run_in_thread, client.userinfo)
-            balances = await asyncio.to_thread(run_in_thread, client.getBalance)
-        
+        if auth_method == "oauth2":
+            client_id = gateway_db.get_config("gmail_client_id")
+            client_secret = gateway_db.get_config("gmail_client_secret")
+            refresh_token = gateway_db.get_config("gmail_refresh_token")
+            emails = await email_engine.fetch_emails_via_oauth2(
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                sender_filter=sender_filter,
+                max_emails=5
+            )
+        else:
+            gmail_address = gateway_db.get_config("gmail_address")
+            app_password = gateway_db.get_config("gmail_app_password")
+            emails = await asyncio.to_thread(
+                email_engine.fetch_emails_via_imap,
+                gmail_address=gmail_address,
+                app_password=app_password,
+                sender_filter=sender_filter,
+                max_emails=5
+            )
+            
+        parsed_samples = []
+        r_amt = gateway_db.get_config("email_parser_regex_amount")
+        r_cnt = gateway_db.get_config("email_parser_regex_content")
+        r_trn = gateway_db.get_config("email_parser_regex_trans_no")
+        r_dat = gateway_db.get_config("email_parser_regex_date")
+
+        for em in emails:
+            parsed = email_engine.parse_bank_email_html(
+                html_content=em["html"],
+                regex_amount=r_amt,
+                regex_content=r_cnt,
+                regex_trans_no=r_trn,
+                regex_date=r_dat
+            )
+            parsed_samples.append({
+                "subject": em["subject"],
+                "from": em["from"],
+                "date": em["date"],
+                "parsed": parsed
+            })
+
         return {
             "success": True,
-            "account_name": user_info.cust.nm,
-            "balances": [
-                {
-                    "account_no": ac.acctNo,
-                    "balance": ac.currentBalance,
-                    "currency": ac.ccyCd
-                } for ac in balances.acct_list
-            ]
+            "count": len(emails),
+            "samples": parsed_samples,
+            "message": f"Kết nối Gmail ({auth_method.upper()}) thành công! Đã đọc thử {len(emails)} email."
         }
     except Exception as e:
-        logger.error(f"Error testing MB connection after retry: {e}")
+        logger.error(f"Test email connection error: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.post("/api/parse-email-sample")
+async def parse_email_sample(req: ParseEmailRequest, authenticated: bool = Depends(get_current_user)):
+    """Parses raw HTML email content against provided or saved regex rules."""
+    try:
+        res = email_engine.parse_bank_email_html(
+            html_content=req.html_content,
+            regex_amount=req.regex_amount,
+            regex_content=req.regex_content,
+            regex_trans_no=req.regex_trans_no,
+            regex_date=req.regex_date
+        )
+        return {
+            "success": True,
+            "parsed": res
+        }
+    except Exception as e:
         return {"success": False, "error": str(e)}
 
 @app.post("/api/scan-now")
@@ -355,6 +401,97 @@ async def delete_pending_payment_endpoint(payment_id: str, authenticated: bool =
     except Exception as e:
         logger.error(f"Error deleting pending payment {payment_id}: {e}")
         return {"success": False, "error": str(e)}
+
+@app.get("/api/oauth2/connect")
+async def google_oauth_connect(request: Request, path: Optional[str] = "/api/auth/callback/google"):
+    """Initiates Google OAuth2 SSO Authorization flow to connect Gmail account."""
+    client_id = (gateway_db.get_config("gmail_client_id") or os.environ.get("GOOGLE_CLIENT_ID") or "").strip().strip('"').strip("'")
+    if not client_id:
+        return HTMLResponse(content="""
+        <script>
+            alert("Chưa cấu hình GOOGLE_CLIENT_ID trong file .env!");
+            window.location.href = "/admin";
+        </script>
+        """, status_code=400)
+
+    base_url = str(request.base_url).rstrip('/')
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        base_url = f"{forwarded_proto}://{request.url.netloc}"
+
+    callback_path = path if path.startswith('/') else f"/{path}"
+    redirect_uri = f"{base_url}{callback_path}"
+    scope = quote("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email")
+    
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={client_id}&"
+        f"redirect_uri={quote(redirect_uri)}&"
+        f"response_type=code&"
+        f"scope={scope}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    logger.info(f"Initiating Google OAuth connect with redirect_uri: {redirect_uri}")
+    return RedirectResponse(url=auth_url)
+
+@app.get("/api/oauth2/callback")
+@app.get("/api/auth/callback/google")
+async def google_oauth_callback(request: Request, code: Optional[str] = None, error: Optional[str] = None):
+    """Handles Google OAuth2 callback code exchange, fetches email and refresh token, and saves to DB."""
+    if error or not code:
+        logger.error(f"Google OAuth callback error: {error}")
+        return RedirectResponse(url=f"/admin?oauth_error={quote(error or 'Người dùng hủy ủy quyền Google')}")
+        
+    client_id = (gateway_db.get_config("gmail_client_id") or os.environ.get("GOOGLE_CLIENT_ID") or "").strip().strip('"').strip("'")
+    client_secret = (gateway_db.get_config("gmail_client_secret") or os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip().strip('"').strip("'")
+    
+    base_url = str(request.base_url).rstrip('/')
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        base_url = f"{forwarded_proto}://{request.url.netloc}"
+
+    path = request.url.path
+    redirect_uri = f"{base_url}{path}"
+    
+    try:
+        token_url = "https://oauth2.googleapis.com/token"
+        token_data = {
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+        
+        r = requests.post(token_url, data=token_data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        if r.status_code != 200:
+            logger.error(f"Failed token exchange: status={r.status_code}, resp={r.text}")
+            return RedirectResponse(url=f"/admin?oauth_error={quote('Lỗi đổi token từ Google API (' + str(r.status_code) + '): ' + r.text)}")
+            
+        res_data = r.json()
+        access_token = res_data.get("access_token")
+        refresh_token = res_data.get("refresh_token")
+        
+        # Get User Email from UserInfo API
+        user_info_res = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"})
+        gmail_address = ""
+        if user_info_res.status_code == 200:
+            gmail_address = user_info_res.json().get("email", "")
+            
+        if gmail_address:
+            gateway_db.set_config("gmail_address", gmail_address)
+        if refresh_token:
+            gateway_db.set_config("gmail_refresh_token", refresh_token)
+        gateway_db.set_config("email_auth_method", "oauth2")
+        gateway_db.set_config("email_gateway_active", "true")
+        
+        logger.info(f"Successfully connected Google OAuth2 for Gmail: {gmail_address}")
+        return RedirectResponse(url=f"/admin?oauth_success=true&email={quote(gmail_address)}")
+        
+    except Exception as e:
+        logger.error(f"Google OAuth callback processing error: {e}")
+        return RedirectResponse(url=f"/admin?oauth_error={quote(str(e))}")
 
 @app.delete("/api/pending-payments")
 async def delete_all_pending_payments_endpoint(authenticated: bool = Depends(get_current_user)):
@@ -388,38 +525,146 @@ async def cron_trigger(secret: Optional[str] = None, request: Request = None):
         logger.error(f"Cron scan failed: {e}")
         return {"success": False, "error": str(e)}
 
-@app.post("/api/webhook/check-qr")
-async def register_qr_payment(req: QRRequest):
+class SimulatePaymentRequest(BaseModel):
+    order_id: str
+    amount: Optional[float] = None
+
+@app.post("/api/test-simulate-payment")
+async def simulate_payment_success(req: SimulatePaymentRequest):
+    """Simulates a bank transaction match for testing purposes."""
+    pay = gateway_db.get_pending_payment_by_ref(req.order_id)
+    if not pay:
+        pending_list = gateway_db.get_pending_payments()
+        for p in pending_list:
+            if p.get("id") == req.order_id:
+                pay = p
+                break
+                
+    if not pay:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng trong hàng chờ.")
+
+    trans_no = "SIM" + str(int(datetime.utcnow().timestamp()))
+    amount = req.amount or float(pay.get("amount") or 0.0)
+    txn_date = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    gateway_db.add_processed_transaction(
+        trans_no=trans_no,
+        amount=amount,
+        details=f"Giả lập thanh toán test cho đơn hàng {req.order_id}",
+        date=txn_date
+    )
+    gateway_db.update_pending_payment_status(pay["id"], "completed")
+
+    class DummyTxn:
+        creditAmount = str(amount)
+        refNo = trans_no
+        description = f"Giả lập thanh toán {pay.get('content')}"
+        transactionDate = txn_date
+
+    asyncio.create_task(send_payment_webhook(pay, status="completed", transaction=DummyTxn()))
+    return {"success": True, "message": f"Đã giả lập duyệt thanh toán thành công cho đơn {req.order_id}!"}
+
+@app.post("/api/v1/payment/create")
+@app.post("/api/payment/create")
+async def create_payment_order(req: CreatePaymentRequest, request: Request):
     """
-    Registers a QR code for payment verification.
-    If already paid (found in recent processed logs), returns immediately.
-    Otherwise, queues it in pending_payments so active scans will cross-check it.
+    Creates a new payment order in KOS Gateway.
+    Returns checkout URL, VietQR image URL, payment ID, and order details.
     """
-    try:
-        # Check if this reference has already been matched
-        # Check by content pattern matching
-        # Wait, since the bank descriptions are checked periodically,
-        # we can first register it and then run a scan
-        payment_id = str(uuid.uuid4())
-        
-        # Save to database
+    order_ref = req.order_id or req.reference_id
+    if not order_ref or not req.amount or not req.content:
+        raise HTTPException(status_code=400, detail="Thiếu thông tin bắt buộc: order_id/reference_id, amount, content")
+    
+    content = req.content.upper().strip()
+    payment_id = str(uuid.uuid4())
+    
+    # Check if existing order in database
+    existing = gateway_db.get_pending_payment_by_ref(order_ref)
+    if not existing or existing.get("status") != "pending":
         gateway_db.add_pending_payment(
             payment_id=payment_id,
-            reference_id=req.reference_id,
+            reference_id=order_ref,
             amount=req.amount,
-            content=req.content.upper().strip(),
-            callback_url=req.callback_url
+            content=content,
+            callback_url=req.callback_url or "",
+            webhook_url=req.webhook_url or ""
         )
-        
-        # Trigger async check to quickly see if it's already in the bank
         asyncio.create_task(perform_transaction_check())
-        
+        logger.info(f"Created new payment order: order_id={order_ref}, amount={req.amount}, content={content}")
+    else:
+        payment_id = existing["id"]
+
+    base_url = str(request.base_url).rstrip('/')
+    checkout_url = f"{base_url}/checkout?orderId={quote(order_ref)}&amount={req.amount}&content={quote(content)}"
+    if req.callback_url:
+        checkout_url += f"&callback={quote(req.callback_url)}"
+    if req.webhook_url:
+        checkout_url += f"&webhook_url={quote(req.webhook_url)}"
+
+    account_number = gateway_db.get_config("mb_account_number", "0123456789")
+    account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
+    bank_code = gateway_db.get_config("mb_bank_code", "MB")
+    qr_code_url = f"https://img.vietqr.io/image/{bank_code}-{account_number}-compact2.png?amount={int(req.amount)}&addInfo={quote(content)}&accountName={quote(account_name)}"
+
+    return {
+        "success": True,
+        "status": "pending",
+        "order_id": order_ref,
+        "payment_id": payment_id,
+        "amount": req.amount,
+        "content": content,
+        "checkout_url": checkout_url,
+        "qr_code_url": qr_code_url
+    }
+
+@app.post("/api/v1/payment/cancel")
+@app.post("/api/payment/cancel")
+async def cancel_payment_order(req: CancelPaymentRequest):
+    """
+    Cancels a pending payment order and sends a failure webhook push event to the client server.
+    """
+    order_ref = req.order_id or req.reference_id
+    if not order_ref:
+        raise HTTPException(status_code=400, detail="Thiếu order_id hoặc reference_id")
+    
+    payment = gateway_db.get_pending_payment_by_ref(order_ref)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng thanh toán")
+    
+    if payment["status"] == "pending":
+        gateway_db.update_pending_payment_status(payment["id"], "cancelled")
+        # Trigger failure push webhook
+        asyncio.create_task(send_payment_webhook(payment, status="cancelled", reason=req.reason or "Đơn hàng bị hủy"))
         return {
             "success": True,
-            "payment_id": payment_id,
-            "status": "pending",
-            "message": "QR registered. System is actively scanning for transaction."
+            "order_id": order_ref,
+            "status": "cancelled",
+            "message": "Đơn hàng thanh toán đã được hủy thành công."
         }
+    
+    return {
+        "success": False,
+        "order_id": order_ref,
+        "status": payment["status"],
+        "message": f"Không thể hủy đơn hàng vì trạng thái hiện tại là {payment['status']}"
+    }
+
+@app.post("/api/webhook/check-qr")
+async def register_qr_payment(req: QRRequest, request: Request):
+    """
+    Registers a QR code for payment verification.
+    """
+    try:
+        order_ref = req.order_id or req.reference_id
+        create_req = CreatePaymentRequest(
+            order_id=order_ref,
+            reference_id=order_ref,
+            amount=req.amount,
+            content=req.content,
+            callback_url=req.callback_url,
+            webhook_url=req.webhook_url
+        )
+        return await create_payment_order(create_req, request)
     except Exception as e:
         logger.error(f"Error registering QR check: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -430,18 +675,15 @@ async def check_payment_status(reference_id: str, force: bool = False):
     Directly triggers a scan and checks if a specific reference_id has been paid.
     Suitable for frontend polling or when user clicks 'I have transferred' button.
     """
-    # Force query MB Bank transactions right now to see if money arrived
     await perform_transaction_check(force=force)
     
-    # Query database to see if status updated
     status = gateway_db.get_pending_payment_status(reference_id)
-    
     if not status:
         return {"status": "not_found", "message": "Không tìm thấy yêu cầu thanh toán với reference_id này."}
         
     return {
         "reference_id": reference_id,
-        "status": status  # 'pending' or 'completed'
+        "status": status
     }
 
 # ----------------- Core Synchronization Engine -----------------
@@ -449,181 +691,229 @@ async def check_payment_status(reference_id: str, force: bool = False):
 async def perform_transaction_check(force: bool = False) -> int:
     """
     Core engine function.
-    Fetches recent transactions from MB Bank and matches against pending_payments in the gateway_db.
-    Sends callback webhooks to registered endpoints for matched items.
+    Fetches recent transactions from Email (Gmail API / IMAP),
+    matches against pending_payments in gateway_db,
+    and sends callback webhooks to registered endpoints for matched items.
     """
-    is_active = gateway_db.get_config("mb_system_active", "true")
-    if is_active == "false" and not force:
-        logger.info("MB Bank automatic scanning is paused due to a connection error. Skipping.")
+    pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
+    if not pending:
+        logger.info("No pending payments in gateway_db. Nothing to check.")
         return 0
 
-    username = gateway_db.get_config("mb_username")
-    if not username:
-        logger.warning("MB Bank username not configured. Skipping scan.")
-        return 0
-        
-    try:
-        import time
-        import json
-        from mbbank.modals.transaction_history import Transaction
+    processed_count = 0
 
-        # Check cache validity
-        last_scan_str = gateway_db.get_config("last_bank_scan_time")
-        cache_valid = False
-        txn_list = []
-        
+    # ---------------- 1. EMAIL BANK NOTIFICATION SCAN ----------------
+    email_active = gateway_db.get_config("email_gateway_active", "true")
+    if email_active == "true":
         try:
-            interval_str = gateway_db.get_config("bank_scan_interval", "30")
-            interval = float(interval_str)
-        except Exception:
-            interval = 30.0
-        
-        if last_scan_str and not force:
-            try:
-                last_scan_time = float(last_scan_str)
-                if time.time() - last_scan_time < interval:
-                    cache_valid = True
-                    logger.info(f"Using cached bank transactions (cache age < {interval}s)")
-                    cache_data = gateway_db.get_config("bank_transactions_cache")
-                    if cache_data:
-                        txn_list_raw = json.loads(cache_data)
-                        txn_list = [Transaction.model_validate(t) for t in txn_list_raw]
-            except Exception as e:
-                logger.error(f"Error reading transaction cache: {e}")
-                cache_valid = False
-
-        if not cache_valid:
-            client = await get_mb_client()
+            auth_method = gateway_db.get_config("email_auth_method", "imap")
+            sender_filter = gateway_db.get_config("email_sender_filter", "")
             
-            # Fetch transactions only for today or last 14 days (if manual force check)
-            to_date = datetime.now()
-            if force:
-                from_date = to_date - timedelta(days=14)
-                logger.info(f"Manual scan triggered. Scanning last 14 days from {from_date} to {to_date}...")
+            emails = []
+            if auth_method == "oauth2":
+                c_id = gateway_db.get_config("gmail_client_id")
+                c_sec = gateway_db.get_config("gmail_client_secret")
+                r_tok = gateway_db.get_config("gmail_refresh_token")
+                if c_id and c_sec and r_tok:
+                    emails = await email_engine.fetch_emails_via_oauth2(
+                        client_id=c_id, client_secret=c_sec, refresh_token=r_tok, sender_filter=sender_filter, max_emails=15
+                    )
             else:
-                from_date = to_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                logger.info(f"Scanning MB Bank transactions from {from_date} to {to_date}...")
-            
-            # Call bank API in threadpool
-            account_no = gateway_db.get_config("mb_account_number") or username
-            try:
-                history = await asyncio.to_thread(
-                    run_in_thread,
-                    client.getTransactionAccountHistory,
-                    accountNo=account_no,
-                    from_date=from_date,
-                    to_date=to_date
-                )
-            except Exception as conn_err:
-                logger.warning(f"Error fetching transactions from MB: {conn_err}. Clearing session and retrying login...")
-                client.sessionId = None
-                try:
-                    history = await asyncio.to_thread(
-                        run_in_thread,
-                        client.getTransactionAccountHistory,
-                        accountNo=account_no,
-                        from_date=from_date,
-                        to_date=to_date
+                g_addr = gateway_db.get_config("gmail_address")
+                g_pass = gateway_db.get_config("gmail_app_password")
+                if g_addr and g_pass:
+                    emails = await asyncio.to_thread(
+                        email_engine.fetch_emails_via_imap,
+                        gmail_address=g_addr, app_password=g_pass, sender_filter=sender_filter, max_emails=15
                     )
-                except Exception as final_err:
-                    logger.error(f"Final error fetching transactions from MB Bank: {final_err}.")
-                    # Set config to inactive to prevent spamming
-                    gateway_db.set_config("mb_system_active", "false")
-                    gateway_db.set_config("mb_system_error_message", str(final_err))
-                    logger.error("Deactivated MB Bank automatic scanning due to persistent connection failure.")
-                    raise final_err
-            
-            txn_list = history.transactionHistoryList or []
-            logger.info(f"Retrieved {len(txn_list)} transactions from MB Bank after retry.")
-            
-            # Save to cache in database (Supabase)
-            try:
-                txn_list_dicts = [t.model_dump() for t in txn_list]
-                gateway_db.set_config("bank_transactions_cache", json.dumps(txn_list_dicts))
-                gateway_db.set_config("last_bank_scan_time", str(time.time()))
-                logger.info("Saved transactions to database cache.")
-            except Exception as e:
-                logger.error(f"Error saving transaction cache to database: {e}")
-        
-        # Fetch pending payments
-        pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
-        if not pending:
-            logger.info("No pending payments in gateway_db. Nothing to check.")
-            return 0
-            
-        processed_count = 0
-        
-        for txn in txn_list:
-            # We care only about credit (incoming money)
-            credit_amount = float(txn.creditAmount or 0)
-            if credit_amount <= 0:
-                continue
-                
-            trans_no = txn.refNo
-            desc = (getattr(txn, "description", "") or getattr(txn, "addDescription", "") or "").upper().strip()
-            
-            # Check if this transaction has already been processed
-            if gateway_db.is_transaction_processed(trans_no):
-                continue
-                
-            # Try to match with pending payments
-            for pay in pending:
-                if pay['status'] != 'pending':
-                    continue
-                    
-                # Match criteria: description matches the content and amount matches
-                pay_content = pay['content'].upper().strip()
-                
-                # Check for exact or substring match in description
-                content_matched = pay_content in desc
-                amount_matched = abs(float(pay['amount']) - credit_amount) < 1.0  # allow minor float delta
-                
-                if content_matched and amount_matched:
-                    logger.info(f"MATCH FOUND: Trans {trans_no} matches pending payment {pay['id']}!")
-                    
-                    # Mark transaction as processed to prevent double callback
-                    success = gateway_db.add_processed_transaction(
-                        trans_no=trans_no,
-                        amount=credit_amount,
-                        details=getattr(txn, "description", "") or getattr(txn, "addDescription", "") or "",
-                        date=txn.transactionDate or ""
-                    )
-                    
-                    if success:
-                        # Update payment status
-                        gateway_db.update_pending_payment_status(pay['id'], 'completed')
-                        
-                        # Trigger webhook callback in background
-                        callback_url = pay['callback_url'] or gateway_db.get_config("default_callback_url")
-                        if callback_url:
-                            asyncio.create_task(send_callback_webhook(callback_url, pay, txn))
-                            
-                        processed_count += 1
-                        break  # Break inner loop, transaction matched
-                        
-        return processed_count
-    except Exception as e:
-        logger.error(f"Error performing transaction check: {e}")
-        return 0
 
-async def send_callback_webhook(url: str, payment: dict, transaction: any):
-    """Sends a signed HTTP POST callback to the client website."""
+            if emails:
+                r_amt = gateway_db.get_config("email_parser_regex_amount")
+                r_cnt = gateway_db.get_config("email_parser_regex_content")
+                r_trn = gateway_db.get_config("email_parser_regex_trans_no")
+                r_dat = gateway_db.get_config("email_parser_regex_date")
+
+                for em in emails:
+                    parsed = email_engine.parse_bank_email_html(
+                        html_content=em["html"],
+                        regex_amount=r_amt,
+                        regex_content=r_cnt,
+                        regex_trans_no=r_trn,
+                        regex_date=r_dat
+                    )
+                    
+                    credit_amount = parsed["amount"]
+                    email_content = (parsed["content"] or "").upper().strip()
+                    full_raw_text = (parsed["raw_text"] or "").upper().strip()
+                    trans_no = parsed["trans_no"] or em["msg_id"]
+                    
+                    if credit_amount <= 0:
+                        continue
+
+                    # Check if processed
+                    if gateway_db.is_transaction_processed(trans_no):
+                        continue
+
+                    for pay in pending:
+                        if pay['status'] != 'pending':
+                            continue
+                        
+                        pay_content = pay['content'].upper().strip()
+                        content_matched = (pay_content in email_content) or (pay_content in full_raw_text)
+                        amount_matched = abs(float(pay['amount']) - credit_amount) < 1.0
+
+                        if content_matched and amount_matched:
+                            logger.info(f"EMAIL MATCH FOUND: Trans {trans_no} matches pending payment {pay['id']}!")
+                            
+                            details_text = f"Email ({em['from']}): {parsed['content'] or em['subject']}"
+                            txn_date = parsed["date"] or em["date"]
+
+                            success = gateway_db.add_processed_transaction(
+                                trans_no=trans_no,
+                                amount=credit_amount,
+                                details=details_text,
+                                date=txn_date
+                            )
+                            
+                            if success:
+                                gateway_db.update_pending_payment_status(pay['id'], 'completed')
+                                class DummyTxn:
+                                    creditAmount = str(credit_amount)
+                                    refNo = trans_no
+                                    description = parsed['content'] or em['subject']
+                                    transactionDate = txn_date
+                                
+                                # Send push webhook (success event)
+                                asyncio.create_task(send_payment_webhook(pay, status="completed", transaction=DummyTxn()))
+                                
+                                processed_count += 1
+                                break
+        except Exception as e:
+            logger.error(f"Error checking email bank transactions: {e}")
+
+    return processed_count
+
+async def send_telegram_notification(text: str):
+    """Sends HTML formatted log notification to configured Telegram Chat ID via Bot API."""
+    bot_token = gateway_db.get_config("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = gateway_db.get_config("telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID")
+    notify_active = gateway_db.get_config("telegram_notify_active", "true")
+    
+    if not bot_token or not chat_id or str(notify_active).lower() == "false":
+        return
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(url, json=payload)
+            if res.status_code == 200:
+                logger.info(f"Telegram notification sent to chat_id {chat_id}")
+            else:
+                logger.error(f"Failed to send Telegram message: status={res.status_code}, resp={res.text}")
+    except Exception as e:
+        logger.error(f"Error sending Telegram notification: {e}")
+
+@app.post("/api/test-telegram")
+async def test_telegram_endpoint(authenticated: bool = Depends(get_current_user)):
+    """Sends a test notification to the configured Telegram Chat ID."""
+    bot_token = gateway_db.get_config("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = gateway_db.get_config("telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token:
+        return {"success": False, "error": "Chưa cấu hình Telegram Bot Token trong file .env hoặc Admin!"}
+    if not chat_id:
+        return {"success": False, "error": "Vui lòng nhập Telegram Chat ID của bạn trên Admin Dashboard!"}
+        
+    test_msg = (
+        f"🤖 <b>[KOS GATEWAY] TEST THÔNG BÁO TELEGRAM</b>\n"
+        f"---------------------------------\n"
+        f"✅ Bot Telegram đã kết nối thành công với KOS Gateway!\n"
+        f"⏰ <b>Thời gian test:</b> {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n"
+        f"📩 <b>Chat ID nhận thông báo:</b> <code>{chat_id}</code>"
+    )
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": test_msg,
+        "parse_mode": "HTML"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(url, json=payload)
+            if res.status_code == 200:
+                return {"success": True, "message": f"Đã gửi tin nhắn test thành công tới Telegram Chat ID {chat_id}!"}
+            else:
+                return {"success": False, "error": f"Lỗi từ Telegram API (HTTP {res.status_code}): {res.text}"}
+    except Exception as e:
+        return {"success": False, "error": f"Lỗi kết nối Telegram: {str(e)}"}
+
+async def send_payment_webhook(payment: dict, status: str, transaction: Optional[any] = None, reason: str = ""):
+    """
+    Sends a signed HTTP POST push webhook to the client server for both SUCCESS and FAILURE/CANCEL events.
+    Also triggers Telegram notification to admin chat.
+    """
     secret = gateway_db.get_config("callback_secret", "super-secret-callback-token")
     
+    target_url = payment.get("webhook_url") or payment.get("callback_url") or gateway_db.get_config("default_callback_url")
+    ref_id = payment.get("reference_id") or payment.get("id")
+    p_id = payment.get("id")
+    amount = float(payment.get("amount") or 0.0)
+    
+    trans_no = getattr(transaction, "refNo", "") if transaction else ""
+    desc = getattr(transaction, "description", "") or getattr(transaction, "addDescription", "") if transaction else (reason or payment.get("content", ""))
+    txn_date = getattr(transaction, "transactionDate", "") if transaction else ""
+
+    is_success = (status == "completed")
+    event_type = "payment.success" if is_success else "payment.failed"
+
+    # Send Telegram notification
+    bank_code = gateway_db.get_config("mb_bank_code", "MB")
+    if is_success:
+        tele_msg = (
+            f"🎉 <b>[KOS GATEWAY] THANH TOÁN THÀNH CÔNG</b>\n"
+            f"---------------------------------\n"
+            f"💰 <b>Số tiền:</b> +{amount:,.0f} VNĐ\n"
+            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
+            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
+            f"🏛️ <b>Ngân hàng:</b> {bank_code}\n"
+            f"💳 <b>Mã giao dịch:</b> {trans_no or 'N/A'}\n"
+            f"⏱️ <b>Thời gian:</b> {txn_date or 'Vừa xong'}"
+        )
+    else:
+        tele_msg = (
+            f"⚠️ <b>[KOS GATEWAY] ĐƠN HÀNG ĐÃ HỦY</b>\n"
+            f"---------------------------------\n"
+            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
+            f"💰 <b>Số tiền:</b> {amount:,.0f} VNĐ\n"
+            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
+            f"🔴 <b>Trạng thái:</b> {status.upper()}"
+        )
+    asyncio.create_task(send_telegram_notification(tele_msg))
+
+    if not target_url:
+        return
+
     payload = {
-        "status": "success",
-        "reference_id": payment["reference_id"],
-        "payment_id": payment["id"],
-        "amount": float(transaction.creditAmount),
-        "trans_no": transaction.refNo,
-        "description": getattr(transaction, "description", "") or getattr(transaction, "addDescription", "") or "",
-        "date": transaction.transactionDate or "",
+        "event": event_type,
+        "status": status,  # 'completed', 'cancelled', 'failed'
+        "order_id": ref_id,
+        "reference_id": ref_id,
+        "payment_id": p_id,
+        "amount": amount,
+        "trans_no": trans_no,
+        "description": desc,
+        "date": txn_date,
         "timestamp": int(datetime.utcnow().timestamp())
     }
     
     # Generate signature for integrity and authenticity
-    # sign_string = reference_id + payment_id + amount + trans_no + secret
-    sign_str = f"{payload['reference_id']}{payload['payment_id']}{payload['amount']}{payload['trans_no']}{secret}"
+    sign_str = f"{ref_id}{p_id}{amount}{trans_no}{secret}"
     signature = hashlib.sha256(sign_str.encode()).hexdigest()
     payload["signature"] = signature
     
@@ -632,14 +922,14 @@ async def send_callback_webhook(url: str, payment: dict, transaction: any):
         "X-Webhook-Signature": signature
     }
     
-    logger.info(f"Sending webhook to {url} for ref {payment['reference_id']}...")
+    logger.info(f"Sending push webhook [{event_type}] to {target_url} for order {ref_id}...")
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.post(url, json=payload, headers=headers)
+            res = await client.post(target_url, json=payload, headers=headers)
             if res.status_code in [200, 201]:
-                logger.info(f"Webhook delivered successfully to {url}. Status: {res.status_code}")
+                logger.info(f"Webhook delivered successfully to {target_url}. Status: {res.status_code}")
             else:
-                logger.error(f"Webhook delivery failed. Server returned status {res.status_code}: {res.text}")
+                logger.error(f"Webhook delivery failed to {target_url}. Status: {res.status_code}: {res.text}")
     except Exception as e:
-        logger.error(f"Failed to connect to callback URL {url}: {e}")
+        logger.error(f"Failed to connect to webhook URL {target_url}: {e}")

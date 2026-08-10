@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo Thanh Toán VietQR - MB Bank Webhook</title>
+    <title>Demo Thanh Toán VietQR - KOS Gateway</title>
     <meta name="description" content="Trang mô phỏng quét mã QR thanh toán và đối soát giao dịch tự động.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,7 @@
     <style>
         :root {
             --bg-color: #f8fafc;
-            --card-bg: rgba(255, 255, 255, 0.7);
+            --card-bg: rgba(255, 255, 255, 0.85);
             --border-color: rgba(0, 0, 0, 0.08);
             --text-primary: #0f172a;
             --text-secondary: #334155;
@@ -83,6 +83,8 @@
             grid-template-columns: 1.2fr 1fr;
             gap: 40px;
             transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
         }
 
         @media (max-width: 768px) {
@@ -139,6 +141,31 @@
             border-color: var(--accent-teal);
             background: #ffffff;
             box-shadow: 0 0 10px rgba(14, 165, 233, 0.15);
+        }
+
+        .preset-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .preset-chip {
+            padding: 6px 12px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-chip:hover {
+            background: var(--accent-teal);
+            color: #ffffff;
+            border-color: var(--accent-teal);
         }
 
         .btn {
@@ -333,6 +360,8 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.5s ease;
+            padding: 30px;
+            text-align: center;
         }
 
         .success-overlay.show {
@@ -349,11 +378,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 3rem;
+            font-size: 2.5rem;
             color: var(--success-color);
-            margin-bottom: 24px;
-            box-shadow: 0 0 30px rgba(16, 185, 129, 0.15);
-            animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-bottom: 20px;
+            animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         @keyframes scaleIn {
@@ -362,26 +390,31 @@
         }
 
         .success-title {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             font-weight: 700;
             color: var(--success-color);
             margin-bottom: 8px;
         }
 
         .back-link {
-            margin-top: 40px;
-            color: var(--accent-blue);
-            text-decoration: none;
-            font-size: 0.95rem;
-            border-bottom: 1px dashed var(--accent-blue);
+            margin-top: 20px;
+            color: var(--accent-teal);
+            font-weight: 600;
             cursor: pointer;
+            text-decoration: underline;
+            font-size: 0.95rem;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo" id="demo-title">VietQR Payment Simulator</h1>
+            <h1 class="logo" id="demo-title">KOS VietQR Simulator</h1>
             <p class="subtitle">Môi trường kiểm thử thanh toán quét mã VietQR và đối soát thời gian thực</p>
         </div>
 
@@ -409,29 +442,35 @@
                         value="10000"
                         min="1000"
                     >
+                    <div class="preset-buttons">
+                        <button type="button" class="preset-chip" onclick="setPresetAmount(10000)">10,000đ</button>
+                        <button type="button" class="preset-chip" onclick="setPresetAmount(50000)">50,000đ</button>
+                        <button type="button" class="preset-chip" onclick="setPresetAmount(100000)">100,000đ</button>
+                        <button type="button" class="preset-chip" onclick="setPresetAmount(500000)">500,000đ</button>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="order-content">Tên Người Chuyển / Nội dung</label>
+                    <label class="form-label" for="order-content">Nội dung chuyển khoản</label>
                     <input 
                         type="text" 
                         id="order-content" 
                         class="form-input" 
-                        placeholder="Ví dụ: PaidLunch Cuong" 
-                        value="PaidLunch "
+                        placeholder="Ví dụ: PAY ORDER_1234" 
+                        value="PAY ORDER_1001"
                     >
-                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">
-                        * Gateway sẽ quét giao dịch MB Bank khớp chính xác với nội dung này.
+                    <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 6px;">
+                        * Gateway sẽ tự động quét thông báo số dư từ {{ bank_name or 'Ngân Hàng' }} khớp chính xác với nội dung này.
                     </span>
                 </div>
 
                 <button class="btn" onclick="generatePayment()" id="btn-create-payment">
-                    💳 Tạo QR Chuyển Khoản
+                    💳 Tạo QR Chuyển Khoản Demo
                 </button>
             </div>
 
-            <!-- Right column: Generated QR code (disabled state initially) -->
-            <div class="qr-section" id="qr-container" style="opacity: 0.3; pointer-events: none;">
+            <!-- Right column: Generated QR code -->
+            <div class="qr-section" id="qr-container" style="opacity: 0.4; pointer-events: none;">
                 <div class="qr-box" id="qr-box">
                     <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23fff'/><text x='50' y='55' font-family='sans-serif' font-size='10' text-anchor='middle' fill='%23ccc'>Chưa tạo QR</text></svg>" alt="VietQR" class="qr-image" id="vietqr-img">
                 </div>
@@ -446,15 +485,15 @@
                 <div class="payment-info">
                     <div class="info-row">
                         <span class="info-label">Ngân hàng</span>
-                        <span class="info-value">MB Bank</span>
+                        <span class="info-value">{{ bank_name or 'MB Bank' }}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Số tài khoản</span>
-                        <span class="info-value" id="info-account-no">{{ account_number or 'Chưa cấu hình' }}</span>
+                        <span class="info-value" id="info-account-no">{{ account_number or '0934860931' }}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Chủ tài khoản</span>
-                        <span class="info-value" id="info-account-name">{{ account_name or 'Chưa cấu hình' }}</span>
+                        <span class="info-value" id="info-account-name">{{ account_name or 'TA QUOC KHANH' }}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">Nội dung CK</span>
@@ -463,9 +502,42 @@
                 </div>
 
                 <button class="btn btn-check-manual" onclick="checkPayment()" id="btn-check-manual">
-                    🔍 Kiểm tra đã chuyển khoản chưa
+                    🔍 Kiểm tra trạng thái thanh toán
+                </button>
+                <button class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-top: 10px; font-size: 0.85rem;" onclick="simulateAutoApprove()" id="btn-simulate">
+                    ⚡ Giả Lập Bank Báo Số Dư (Test Webhook & Auto Redirect)
                 </button>
             </div>
+        </div>
+
+        <!-- Callback Result Card View (When redirected back with ?status=completed) -->
+        <div class="glass-card" id="callback-result-card" style="display: none; text-align: center; grid-template-columns: 1fr;">
+            <div style="font-size: 3.5rem; margin-bottom: 12px; animation: bounce 1s infinite;">🎉</div>
+            <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--success-color); margin-bottom: 8px;">
+                Thanh Toán Đơn Hàng Thành Công!
+            </h2>
+            <p class="subtitle" style="margin-bottom: 24px;">
+                Cổng thanh toán KOS Gateway đã nhận được tiền &amp; phát Push Webhook Server-to-Server thành công!
+            </p>
+
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 16px; padding: 20px; text-align: left; margin-bottom: 24px; font-size: 0.95rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: var(--text-muted);">Mã đơn hàng:</span>
+                    <strong id="res-order-id" style="color: var(--text-primary); font-family: monospace;">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: var(--text-muted);">Số tiền đã nhận:</span>
+                    <strong id="res-amount" style="color: var(--success-color);">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Trạng thái Callback:</span>
+                    <span style="color: var(--success-color); font-weight: 600;">✓ Đã xác nhận &amp; Xử lý thành công</span>
+                </div>
+            </div>
+
+            <button class="btn" onclick="resetDemo(true)" style="margin-top: 10px;">
+                🔄 Tạo đơn hàng demo mới
+            </button>
         </div>
     </div>
 
@@ -475,15 +547,33 @@
         let currentRefId = null;
         let currentAmount = 0;
         let timerSeconds = 300;
+        let callbackUrl = "";
 
-        // Auto append random code to order content to ensure uniqueness
+        function generateRandomOrderCode() {
+            const randomId = Math.floor(1000 + Math.random() * 9000);
+            return `ORDER_${randomId}`;
+        }
+
+        function setPresetAmount(val) {
+            document.getElementById("amount").value = val;
+        }
+
+        // Auto append random order code to content to ensure uniqueness
         document.addEventListener("DOMContentLoaded", () => {
-            const contentInput = document.getElementById("order-content");
-            const randomCode = Math.floor(1000 + Math.random() * 9000);
-            contentInput.value = `PaidLunch user${randomCode}`;
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get("status") === "completed") {
+                // Show result callback card!
+                document.getElementById("demo-card").style.display = "none";
+                document.getElementById("callback-result-card").style.display = "grid";
+                document.getElementById("res-order-id").innerText = urlParams.get("order_id") || "ORDER_DEMO";
+                document.getElementById("res-amount").innerText = formatCurrency(urlParams.get("amount") || 10000);
+            } else {
+                const orderCode = generateRandomOrderCode();
+                document.getElementById("order-content").value = `PAY ${orderCode}`;
+            }
         });
 
-        // Web Audio API Sound Synthesizer
+        // Web Audio API Sound Synthesizer for success chime
         function playSuccessSound() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -492,13 +582,11 @@
                 osc.connect(gain);
                 gain.connect(ctx.destination);
                 
-                // Play first note C5
                 osc.frequency.setValueAtTime(523.25, ctx.currentTime);
                 gain.gain.setValueAtTime(0.1, ctx.currentTime);
                 osc.start();
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
                 
-                // Play second note E5 after 150ms
                 setTimeout(() => {
                     osc.frequency.setValueAtTime(659.25, ctx.currentTime);
                     gain.gain.setValueAtTime(0.1, ctx.currentTime);
@@ -518,8 +606,20 @@
         async function generatePayment() {
             const amountInput = document.getElementById("amount");
             const contentInput = document.getElementById("order-content");
-            const accountNo = document.getElementById("info-account-no").innerText;
-            const accountName = document.getElementById("info-account-name").innerText;
+            const accountNoEl = document.getElementById("info-account-no");
+            const accountNameEl = document.getElementById("info-account-name");
+
+            let accountNo = accountNoEl.innerText.trim();
+            let accountName = accountNameEl.innerText.trim();
+
+            if (accountNo === 'Chưa cấu hình' || !accountNo) {
+                accountNo = "0934860931";
+                accountNoEl.innerText = accountNo;
+            }
+            if (accountName === 'Chưa cấu hình' || !accountName) {
+                accountName = "TA QUOC KHANH";
+                accountNameEl.innerText = accountName;
+            }
 
             const amount = parseInt(amountInput.value);
             const content = contentInput.value.trim().toUpperCase();
@@ -532,10 +632,6 @@
                 alert("Vui lòng nhập nội dung chuyển khoản!");
                 return;
             }
-            if (accountNo === 'Chưa cấu hình') {
-                alert("Vui lòng cấu hình tài khoản MB Bank trong admin dashboard trước!");
-                return;
-            }
 
             // Lock creation form, enable QR container
             document.getElementById("btn-create-payment").disabled = true;
@@ -546,40 +642,44 @@
             qrContainer.style.opacity = "1";
             qrContainer.style.pointerEvents = "auto";
 
-            // Generate unique reference ID
-            currentRefId = "REF" + Date.now().toString().slice(-8);
+            // Extract or Generate unique reference ID
+            currentRefId = content.replace("PAY ", "").trim() || ("ORDER_" + Date.now().toString().slice(-4));
             currentAmount = amount;
+            callbackUrl = window.location.origin + `/demo?status=completed&order_id=${currentRefId}&amount=${amount}`;
 
             // Update details
             document.getElementById("info-transfer-content").innerText = content;
 
             // Set VietQR Image Source
-            // Format: https://img.vietqr.io/image/<BANK_ID>-<ACCOUNT_NO>-<TEMPLATE>.png?amount=<AMOUNT>&addInfo=<CONTENT>
-            const vietqrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact.png?amount=${amount}&addInfo=${encodeURIComponent(content)}`;
+            const bankCode = "{{ bank_code or 'MB' }}";
+            const cleanAccNo = accountNo.replace(/\s+/g, '');
+            const vietqrUrl = `https://img.vietqr.io/image/${bankCode}-${cleanAccNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
             document.getElementById("vietqr-img").src = vietqrUrl;
 
-            // Register QR session with our backend gateway
+            // Register QR session with backend gateway
             document.getElementById("status-text").innerText = "Đang kết nối cổng thanh toán...";
             document.getElementById("status-spinner").style.display = "inline-block";
 
             try {
-                const res = await fetch("/api/webhook/check-qr", {
+                const res = await fetch("/api/v1/payment/create", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        reference_id: currentRefId,
+                        order_id: currentRefId,
                         amount: amount,
-                        content: content
+                        content: content,
+                        callback_url: callbackUrl,
+                        webhook_url: window.location.origin + "/api/webhooks/demo-mock"
                     })
                 });
-
                 const data = await res.json();
+
                 if (data.success) {
-                    document.getElementById("status-text").innerText = "Đang quét giao dịch...";
+                    document.getElementById("status-text").innerText = "Đang chờ thanh toán...";
                     startPolling();
                     startCountdown();
                 } else {
-                    document.getElementById("status-text").innerText = "Đăng ký thanh toán lỗi.";
+                    document.getElementById("status-text").innerText = "Lỗi tạo đơn hàng: " + (data.error || "Không xác định");
                     document.getElementById("status-spinner").style.display = "none";
                 }
             } catch (err) {
@@ -588,12 +688,40 @@
             }
         }
 
+        async function simulateAutoApprove() {
+            if (!currentRefId) return;
+            const btn = document.getElementById("btn-simulate");
+            btn.disabled = true;
+            btn.innerText = "⏳ Đang phát Webhook & duyệt tiền...";
+
+            try {
+                const res = await fetch("/api/test-simulate-payment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        order_id: currentRefId,
+                        amount: currentAmount
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    checkPayment();
+                } else {
+                    alert("Lỗi giả lập: " + (data.error || data.detail));
+                    btn.disabled = false;
+                    btn.innerText = "⚡ Giả Lập Bank Báo Số Dư (Test Webhook & Auto Redirect)";
+                }
+            } catch (err) {
+                alert("Lỗi kết nối: " + err.message);
+                btn.disabled = false;
+                btn.innerText = "⚡ Giả Lập Bank Báo Số Dư (Test Webhook & Auto Redirect)";
+            }
+        }
+
         // Poll Payment Status
         function startPolling() {
             if (pollingInterval) clearInterval(pollingInterval);
-            
-            // Poll every 4 seconds
-            pollingInterval = setInterval(checkPayment, 4000);
+            pollingInterval = setInterval(checkPayment, 2500);
         }
 
         // Check Payment Status once
@@ -601,7 +729,7 @@
             if (!currentRefId) return;
 
             const checkBtn = document.getElementById("btn-check-manual");
-            checkBtn.disabled = true;
+            if (checkBtn) checkBtn.disabled = true;
 
             try {
                 const res = await fetch(`/api/check-payment/${currentRefId}`);
@@ -609,31 +737,48 @@
 
                 if (data.status === "completed") {
                     handleSuccess();
-                } else if (data.status === "pending") {
-                    console.log("Payment still pending...");
                 }
             } catch (err) {
                 console.error("Error polling payment status:", err);
             } finally {
-                checkBtn.disabled = false;
+                if (checkBtn) checkBtn.disabled = false;
             }
         }
 
         // Success handling
         function handleSuccess() {
-            // Stop polling and timer
             clearInterval(pollingInterval);
             clearInterval(countdownInterval);
 
-            // Play successful beep audio
             playSuccessSound();
 
-            // Set overlay values
             document.getElementById("success-amount-text").innerText = `Số tiền nhận được: ${formatCurrency(currentAmount)}`;
             document.getElementById("success-ref-text").innerText = `Mã tham chiếu: ${currentRefId}`;
             
-            // Show Success Overlay Modal
             document.getElementById("success-overlay").classList.add("show");
+
+            // Auto redirect to callback URL after 3 seconds
+            let redirectSeconds = 3;
+            let redirectNotice = document.getElementById("redirect-notice");
+            if (!redirectNotice) {
+                redirectNotice = document.createElement("div");
+                redirectNotice.id = "redirect-notice";
+                redirectNotice.style.fontSize = "0.85rem";
+                redirectNotice.style.color = "var(--accent-teal)";
+                redirectNotice.style.marginTop = "14px";
+                document.getElementById("success-overlay").appendChild(redirectNotice);
+            }
+            redirectNotice.innerHTML = `🔄 Tự động điều hướng về Callback URL sau <b>${redirectSeconds}</b> giây...`;
+
+            const redirectInterval = setInterval(() => {
+                redirectSeconds--;
+                if (redirectSeconds <= 0) {
+                    clearInterval(redirectInterval);
+                    window.location.href = callbackUrl;
+                } else {
+                    redirectNotice.innerHTML = `🔄 Tự động điều hướng về Callback URL sau <b>${redirectSeconds}</b> giây...`;
+                }
+            }, 1000);
         }
 
         // Countdown Timer
@@ -664,7 +809,11 @@
         }
 
         // Reset and generate a new QR check
-        function resetDemo() {
+        function resetDemo(reloadPage = false) {
+            if (reloadPage) {
+                window.location.href = "/demo";
+                return;
+            }
             clearInterval(pollingInterval);
             clearInterval(countdownInterval);
 
@@ -674,7 +823,7 @@
             document.getElementById("order-content").disabled = false;
 
             const qrContainer = document.getElementById("qr-container");
-            qrContainer.style.opacity = "0.3";
+            qrContainer.style.opacity = "0.4";
             qrContainer.style.pointerEvents = "none";
 
             document.getElementById("vietqr-img").src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23fff'/><text x='50' y='55' font-family='sans-serif' font-size='10' text-anchor='middle' fill='%23ccc'>Chưa tạo QR</text></svg>";
@@ -687,10 +836,8 @@
             document.getElementById("status-spinner").style.display = "none";
             document.getElementById("info-transfer-content").innerText = "-";
 
-            // Generate new random code for next content
-            const contentInput = document.getElementById("order-content");
-            const randomCode = Math.floor(1000 + Math.random() * 9000);
-            contentInput.value = `PaidLunch user${randomCode}`;
+            const orderCode = generateRandomOrderCode();
+            document.getElementById("order-content").value = `PAY ${orderCode}`;
         }
     </script>
 </body>
