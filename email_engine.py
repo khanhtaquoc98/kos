@@ -312,12 +312,14 @@ async def fetch_emails_via_oauth2(
         q_parts = []
         if label_filter and label_filter.strip().upper() != "ALL":
             labels = [l.strip() for l in label_filter.split(",") if l.strip()]
+            if "INBOX" not in [l.upper() for l in labels]:
+                labels.append("INBOX")
             if len(labels) == 1:
                 q_parts.append(f"label:{labels[0]}")
             elif len(labels) > 1:
                 q_parts.append(f"({' OR '.join([f'label:{l}' for l in labels])})")
         elif label_filter is None:
-            q_parts.append("label:BankNotify")
+            q_parts.append("(label:BankNotify OR label:INBOX)")
 
         if sender_filter:
             senders = [s.strip() for s in sender_filter.split(",") if s.strip()]

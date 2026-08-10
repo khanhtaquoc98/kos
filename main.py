@@ -710,6 +710,9 @@ async def perform_transaction_check(force: bool = False) -> int:
 
     processed_count = 0
 
+    # Ensure Gmail Watch PubSub is active & up-to-date with configured labels
+    asyncio.create_task(ensure_gmail_watch_active())
+
     # ---------------- 1. EMAIL BANK NOTIFICATION SCAN ----------------
     email_active = gateway_db.get_config("email_gateway_active", "true")
     if email_active == "true":
@@ -777,7 +780,19 @@ async def perform_transaction_check(force: bool = False) -> int:
                         if not pay_content:
                             continue
 
-                        content_matched = (pay_content in email_content) or (pay_content in full_raw_text)
+                        # 1. Exact substring match
+                        exact_matched = (pay_content in email_content) or (pay_content in full_raw_text)
+
+                        # 2. Normalized alphanumeric match (ignores spaces, hyphens, prefixes)
+                        clean_pay = re.sub(r'[^A-Z0-9]', '', pay_content)
+                        clean_email_cnt = re.sub(r'[^A-Z0-9]', '', email_content)
+                        clean_full_txt = re.sub(r'[^A-Z0-9]', '', full_raw_text)
+
+                        clean_matched = False
+                        if clean_pay:
+                            clean_matched = (clean_pay in clean_email_cnt) or (clean_pay in clean_full_txt)
+
+                        content_matched = exact_matched or clean_matched
                         
                         try:
                             pay_amount = float(pay.get('amount') or 0.0)
@@ -981,9 +996,9 @@ async def gmail_push_webhook(request: Request):
         return {"success": False, "error": str(e)}
 
 
-async def ensure_gmail_watch_active():
+async def ensure_gmail_watch_active(force: bool = False):
     """
-    Checks if Gmail Watch is close to expiration (< 48 hours remaining) or expired,
+    Checks if Gmail Watch is close to expiration (< 48 hours remaining), expired or forced,
     and automatically renews it with Google Cloud Pub/Sub.
     """
     topic_name = gateway_db.get_config("gmail_pubsub_topic")
@@ -997,8 +1012,8 @@ async def ensure_gmail_watch_active():
         exp_ms = 0
 
     now_ms = int(datetime.utcnow().timestamp() * 1000)
-    # Renew if expired or will expire within 48 hours
-    if exp_ms - now_ms < (48 * 3600 * 1000):
+    # Renew if forced, expired or will expire within 48 hours
+    if force or (exp_ms - now_ms < (48 * 3600 * 1000)):
         c_id = gateway_db.get_config("gmail_client_id")
         c_sec = gateway_db.get_config("gmail_client_secret")
         r_tok = gateway_db.get_config("gmail_refresh_token")
