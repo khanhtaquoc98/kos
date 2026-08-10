@@ -954,12 +954,13 @@ async def gmail_push_webhook(request: Request):
             decoded_data = base64.b64decode(data_b64).decode("utf-8")
             logger.info(f"Received Gmail Pub/Sub Push notification: {decoded_data}")
         
-        # Trigger immediate background scan and push webhook matching
-        asyncio.create_task(perform_transaction_check(force=True))
-        return {"success": True, "message": "Gmail Push notification received"}
+        # Run transaction scan synchronously on Vercel Serverless before response terminates
+        count = await perform_transaction_check(force=True)
+        return {"success": True, "message": "Gmail Push notification received", "processed_count": count}
     except Exception as e:
         logger.error(f"Error handling Gmail Push notification: {e}")
         return {"success": False, "error": str(e)}
+
 
 async def ensure_gmail_watch_active():
     """
