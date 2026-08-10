@@ -44,7 +44,7 @@ Website Bán Hàng (Client)                    KOS Webhook Gateway
 
 Khi người dùng nhấn **Thanh Toán** trên website của bạn, Backend gửi request HTTP POST để khởi tạo đơn hàng:
 
-* **Endpoint**: `POST https://your-kos-domain.vercel.app/api/v1/payment/create`
+* **Endpoint**: `POST https://kos-payment.vercel.app/api/v1/payment/create`
 * **Content-Type**: `application/json`
 
 ### Request Body Payload
@@ -75,7 +75,7 @@ Khi người dùng nhấn **Thanh Toán** trên website của bạn, Backend g�
   "payment_id": "f8a92b1c-0e8e-4af9-929a-61cb83517d8e",
   "amount": 500000.0,
   "content": "PAY ORDER 10023",
-  "checkout_url": "https://your-kos-domain.vercel.app/checkout?orderId=ORDER_10023&amount=500000&content=PAY%20ORDER%2010023&callback=https%3A%2F%2Fmyshop.com%2Fpayment%2Fresult&webhook_url=https%3A%2F%2Fmyshop.com%2Fapi%2Fkos-webhook",
+  "checkout_url": "https://kos-payment.vercel.app/checkout?orderId=ORDER_10023&amount=500000&content=PAY%20ORDER%2010023&callback=https%3A%2F%2Fmyshop.com%2Fpayment%2Fresult&webhook_url=https%3A%2F%2Fmyshop.com%2Fapi%2Fkos-webhook",
   "qr_code_url": "https://img.vietqr.io/image/MB-0123456789-compact2.png?amount=500000&addInfo=PAY%20ORDER%2010023&accountName=CONG%20THANH%20TOAN%20KOS"
 }
 ```
@@ -336,7 +336,7 @@ async def kos_webhook_handler(request: Request):
 
 Khi người dùng bấm Hủy đơn trên website bán hàng, Backend gọi API này để đánh dấu hủy đơn trên KOS Gateway:
 
-* **Endpoint**: `POST https://your-kos-domain.vercel.app/api/v1/payment/cancel`
+* **Endpoint**: `POST https://kos-payment.vercel.app/api/v1/payment/cancel`
 * **Request Body**:
   ```json
   {
@@ -351,7 +351,7 @@ Khi người dùng bấm Hủy đơn trên website bán hàng, Backend gọi API
 
 Dành cho frontend polling hoặc nút **"Tôi đã chuyển khoản"**:
 
-* **Request**: `GET https://your-kos-domain.vercel.app/api/check-payment/ORDER_10023`
+* **Request**: `GET https://kos-payment.vercel.app/api/check-payment/ORDER_10023`
 * **Response**: `{"reference_id": "ORDER_10023", "status": "completed"}` (`pending`, `completed`, `cancelled`, `not_found`).
 
 ---
@@ -364,7 +364,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const { orderId, amount, content } = await request.json();
-  const kosGatewayUrl = process.env.KOS_GATEWAY_URL || 'https://your-kos-gateway.vercel.app';
+  const kosGatewayUrl = process.env.KOS_GATEWAY_URL || 'https://kos-payment.vercel.app';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   try {

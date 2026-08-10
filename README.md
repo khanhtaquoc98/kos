@@ -157,7 +157,7 @@ Website của bạn gửi request tạo đơn hàng thanh toán vào KOS Gateway
     "payment_id": "c7a8b981-d102-4bb3-9ef4-d3a5e8c1ab2f",
     "amount": 500000.0,
     "content": "PAY DH1001",
-    "checkout_url": "https://kos-gateway.vercel.app/checkout?orderId=DH1001&amount=500000&content=PAY+DH1001...",
+    "checkout_url": "https://kos-payment.vercel.app/checkout?orderId=DH1001&amount=500000&content=PAY+DH1001...",
     "qr_code_url": "https://img.vietqr.io/image/MB-0123456789-compact2.png?amount=500000&addInfo=PAY+DH1001"
   }
   ```
