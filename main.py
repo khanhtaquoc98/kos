@@ -26,15 +26,11 @@ app = FastAPI(title="KOS Admin Gateway", version="0.3.0")
 
 # Setup templates path (in the same directory)
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-logger.info(f"Checking templates path: {templates_dir}")
-try:
-    logger.info(f"Files in task dir: {os.listdir(os.path.dirname(__file__))}")
-    if os.path.exists(templates_dir):
-        logger.info(f"Files in templates dir: {os.listdir(templates_dir)}")
-    else:
-        logger.error("Templates directory DOES NOT exist!")
-except Exception as e:
-    logger.error(f"Error checking directories: {e}")
+if not os.path.exists(templates_dir):
+    try:
+        os.makedirs(templates_dir, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed creating templates_dir: {e}")
 
 templates = Jinja2Templates(directory=templates_dir)
 
@@ -117,6 +113,8 @@ def get_current_user(request: Request):
 class CreatePaymentRequest(BaseModel):
     order_id: Optional[str] = None
     reference_id: Optional[str] = None
+    orderId: Optional[str] = None
+    orderCode: Optional[str] = None
     amount: float
     content: str
     callback_url: Optional[str] = ""
@@ -234,9 +232,12 @@ async def checkout_get(
     callback: str = "",
     orderCode: str = "",
     orderId: str = "",
+    order_id: str = "",
+    reference_id: str = "",
     webhook_url: Optional[str] = None
 ):
-    if not amount or not content or not orderId:
+    final_order_id = orderId or order_id or orderCode or reference_id
+    if not amount or not content or not final_order_id:
         return render_template(request, "checkout_error.html", {
             "error": "Thiếu tham số thanh toán bắt buộc (số tiền amount, nội dung content, hoặc mã đơn hàng orderId)."
         })
@@ -244,13 +245,13 @@ async def checkout_get(
     content = content.upper().strip()
     
     # Check if this pending payment already exists in database
-    existing_status = gateway_db.get_pending_payment_status(orderId)
+    existing_status = gateway_db.get_pending_payment_status(final_order_id)
     if not existing_status or existing_status != 'pending':
         payment_id = str(uuid.uuid4())
         try:
             gateway_db.add_pending_payment(
                 payment_id=payment_id,
-                reference_id=orderId,
+                reference_id=final_order_id,
                 amount=amount,
                 content=content,
                 callback_url=callback,
@@ -258,20 +259,20 @@ async def checkout_get(
             )
             # Trigger async check to quickly see if it's already in the bank
             asyncio.create_task(perform_transaction_check())
-            logger.info(f"Registered pending payment via checkout: ref={orderId}, amount={amount}, content={content}")
+            logger.info(f"Registered pending payment via checkout: ref={final_order_id}, amount={amount}, content={content}")
         except Exception as e:
             logger.error(f"Error registering pending payment in checkout: {e}")
 
-    account_number = gateway_db.get_config("mb_account_number", "0123456789")
-    account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
-    bank_code = gateway_db.get_config("mb_bank_code", "MB")
+    account_number = gateway_db.get_config("mb_account_number", "0934860931")
+    account_name = gateway_db.get_config("mb_account_name", "TA QUOC KHANH")
+    bank_code = gateway_db.get_config("mb_bank_code", "TIMO")
 
     return render_template(request, "checkout.html", {
         "amount": amount,
         "content": content,
         "callback": callback,
-        "orderCode": orderCode,
-        "orderId": orderId,
+        "orderCode": orderCode or final_order_id,
+        "orderId": final_order_id,
         "account_number": account_number,
         "account_name": account_name,
         "bank_code": bank_code
@@ -571,7 +572,7 @@ async def create_payment_order(req: CreatePaymentRequest, request: Request):
     Creates a new payment order in KOS Gateway.
     Returns checkout URL, VietQR image URL, payment ID, and order details.
     """
-    order_ref = req.order_id or req.reference_id
+    order_ref = req.order_id or req.reference_id or req.orderId or req.orderCode
     if not order_ref or not req.amount or not req.content:
         raise HTTPException(status_code=400, detail="Thiếu thông tin bắt buộc: order_id/reference_id, amount, content")
     
@@ -623,7 +624,7 @@ async def cancel_payment_order(req: CancelPaymentRequest):
     """
     Cancels a pending payment order and sends a failure webhook push event to the client server.
     """
-    order_ref = req.order_id or req.reference_id
+    order_ref = req.order_id or req.reference_id or req.orderId or req.orderCode
     if not order_ref:
         raise HTTPException(status_code=400, detail="Thiếu order_id hoặc reference_id")
     
@@ -655,7 +656,7 @@ async def register_qr_payment(req: QRRequest, request: Request):
     Registers a QR code for payment verification.
     """
     try:
-        order_ref = req.order_id or req.reference_id
+        order_ref = req.order_id or req.reference_id or req.orderId or req.orderCode
         create_req = CreatePaymentRequest(
             order_id=order_ref,
             reference_id=order_ref,
