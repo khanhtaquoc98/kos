@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 import asyncio
 import uuid
@@ -149,6 +150,7 @@ class ConfigUpdate(BaseModel):
     email_auth_method: Optional[str] = "oauth2"
     email_sender_filter: Optional[str] = ""
     gmail_pubsub_label_ids: Optional[str] = "BankNotify"
+    gmail_pubsub_topic: Optional[str] = ""
     gmail_address: Optional[str] = ""
     gmail_app_password: Optional[str] = ""
     gmail_refresh_token: Optional[str] = ""
@@ -293,6 +295,8 @@ async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get
             gateway_db.set_config("email_sender_filter", cfg.email_sender_filter)
         if cfg.gmail_pubsub_label_ids is not None:
             gateway_db.set_config("gmail_pubsub_label_ids", cfg.gmail_pubsub_label_ids)
+        if cfg.gmail_pubsub_topic is not None:
+            gateway_db.set_config("gmail_pubsub_topic", cfg.gmail_pubsub_topic)
         if cfg.gmail_address:
             gateway_db.set_config("gmail_address", cfg.gmail_address)
         if cfg.gmail_app_password:
@@ -1108,6 +1112,10 @@ async def subscribe_gmail_watch_endpoint(
         return {"success": True, "data": res}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 
 

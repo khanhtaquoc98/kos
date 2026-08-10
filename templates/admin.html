@@ -594,6 +594,25 @@
                             </span>
                         </div>
 
+                        <!-- Google Cloud Pub/Sub Push Section -->
+                        <div style="background: rgba(37, 99, 235, 0.04); border: 1px solid rgba(37, 99, 235, 0.15); border-radius: 14px; padding: 20px; margin-top: 20px;">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; color: #2563eb; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                🔔 Cấu Hình Gmail Push Notification (Google Cloud Pub/Sub)
+                            </h4>
+
+                            <div class="form-group">
+                                <label class="form-label" for="gmail-pubsub-topic">Google Cloud Pub/Sub Topic Name</label>
+                                <input type="text" id="gmail-pubsub-topic" name="gmail_pubsub_topic" class="form-input" placeholder="projects/YOUR_PROJECT_ID/topics/YOUR_TOPIC_NAME" value="{{ configs.gmail_pubsub_topic or '' }}">
+                                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">
+                                    💡 Định dạng: <code>projects/PROJECT_ID/topics/TOPIC_NAME</code>
+                                </span>
+                            </div>
+
+                            <button type="button" class="btn btn-secondary" style="width: 100%; font-size: 0.85rem; margin-top: 8px; background: #2563eb; color: #ffffff;" onclick="subscribeGmailWatch()" id="btn-subscribe-gmail-watch">
+                                🔔 Kích Hoạt / Gia Hạn Gmail Push Watch
+                            </button>
+                        </div>
+
                         <!-- Telegram Bot Section -->
                         <div style="background: rgba(16, 185, 129, 0.04); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 14px; padding: 20px; margin-top: 20px;">
                             <h4 style="font-size: 0.95rem; font-weight: 600; color: #10b981; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
@@ -954,16 +973,56 @@
                 const res = await fetch('/api/scan-now', { method: 'POST' });
                 const result = await res.json();
 
-                if (result.success) {
+                if (res.ok && result.success) {
                     log(`Quét hoàn tất! Xử lý thành công ${result.processed_count} giao dịch mới.`, 'success');
                     showToast(`Quét xong! Phát hiện ${result.processed_count} GD mới.`, 'success');
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    log(`Lỗi khi quét: ${result.error}`, 'error');
-                    showToast(`Lỗi đối soát: ${result.error}`, 'error');
+                    const errDetail = result.detail || result.error || 'Phiên làm việc hết hạn hoặc có lỗi xảy ra';
+                    log(`Lỗi khi quét: ${errDetail}`, 'error');
+                    showToast(`Lỗi đối soát: ${errDetail}`, 'error');
                 }
             } catch (err) {
                 log(`Lỗi: ${err.message}`, 'error');
+                showToast('Lỗi kết nối!', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // Subscribe Gmail Watch Push
+        async function subscribeGmailWatch() {
+            const topicInput = document.getElementById('gmail-pubsub-topic');
+            const topicName = topicInput ? topicInput.value.trim() : '';
+            const labelInput = document.getElementById('gmail-pubsub-label-ids');
+            const labelIds = labelInput ? labelInput.value.trim() : 'BankNotify';
+            const btn = document.getElementById('btn-subscribe-gmail-watch');
+
+            if (!topicName) {
+                showToast('Vui lòng nhập Pub/Sub Topic Name dạng projects/.../topics/...', 'error');
+                if (topicInput) topicInput.focus();
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+            log('Đang kích hoạt Gmail Push Watch với Google Cloud Pub/Sub...', 'info');
+
+            try {
+                const url = `/api/admin/gmail-watch/subscribe?topic_name=${encodeURIComponent(topicName)}&label_ids=${encodeURIComponent(labelIds)}`;
+                const res = await fetch(url, { method: 'POST' });
+                const result = await res.json();
+
+                if (res.ok && result.success !== false) {
+                    log('Kích hoạt Gmail Push Watch thành công!', 'success');
+                    showToast('Đã kích hoạt Gmail Push Watch thành công!', 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    const errDetail = result.detail || result.error || 'Lỗi không xác định';
+                    log(`Lỗi kích hoạt Gmail Push Watch: ${errDetail}`, 'error');
+                    showToast(`Lỗi: ${errDetail}`, 'error');
+                }
+            } catch (err) {
+                log(`Lỗi kết nối khi kích hoạt Gmail Push Watch: ${err.message}`, 'error');
                 showToast('Lỗi kết nối!', 'error');
             } finally {
                 if (btn) btn.disabled = false;
@@ -1103,8 +1162,9 @@
                         });
                     }
                 } else {
-                    log(`Lỗi kết nối Gmail: ${result.error}`, 'error');
-                    showToast(`Lỗi Gmail: ${result.error}`, 'error');
+                    const errDetail = result.detail || result.error || 'Phiên làm việc hết hạn hoặc lỗi kết nối Gmail';
+                    log(`Lỗi kết nối Gmail: ${errDetail}`, 'error');
+                    showToast(`Lỗi Gmail: ${errDetail}`, 'error');
                 }
             } catch (err) {
                 log(`Lỗi kết nối: ${err.message}`, 'error');
@@ -1158,8 +1218,9 @@
                         </div>
                     `;
                 } else {
-                    log(`Lỗi phân tích HTML: ${result.error}`, 'error');
-                    showToast(`Lỗi: ${result.error}`, 'error');
+                    const errDetail = result.detail || result.error || 'Lỗi không xác định';
+                    log(`Lỗi phân tích HTML: ${errDetail}`, 'error');
+                    showToast(`Lỗi: ${errDetail}`, 'error');
                 }
             } catch (err) {
                 log(`Lỗi kết nối: ${err.message}`, 'error');

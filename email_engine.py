@@ -1,3 +1,4 @@
+import asyncio
 import imaplib
 import email
 from email.header import decode_header
@@ -292,8 +293,9 @@ async def fetch_emails_via_oauth2(
     if not c_id or not c_sec or not r_tok:
         raise ValueError("Chưa điền Client ID, Client Secret hoặc Refresh Token của Google OAuth2.")
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        # 1. Refresh Access Token
+    req_timeout = httpx.Timeout(30.0, connect=10.0, read=30.0)
+    async with httpx.AsyncClient(timeout=req_timeout) as client:
+        # 1. Refresh Access Token with retries for transient network/read timeouts
         token_url = "https://oauth2.googleapis.com/token"
         token_data = {
             "client_id": c_id,
@@ -301,9 +303,20 @@ async def fetch_emails_via_oauth2(
             "refresh_token": r_tok,
             "grant_type": "refresh_token"
         }
-        res = await client.post(token_url, data=token_data)
-        if res.status_code != 200:
-            raise ValueError(f"Không thể cấp lại Access Token từ Google OAuth2: {res.text}")
+        res = None
+        for attempt in range(3):
+            try:
+                res = await client.post(token_url, data=token_data)
+                if res.status_code == 200:
+                    break
+            except (httpx.TimeoutException, httpx.NetworkError) as te:
+                if attempt == 2:
+                    raise ValueError(f"Kết nối tới Google OAuth2 token endpoint bị timeout: {te}")
+                await asyncio.sleep(0.5)
+
+        if not res or res.status_code != 200:
+            err_text = res.text if res else "No response"
+            raise ValueError(f"Không thể cấp lại Access Token từ Google OAuth2: {err_text}")
 
         access_token = res.json().get("access_token")
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -410,16 +423,29 @@ async def subscribe_gmail_watch(
     if not c_id or not c_sec or not r_tok or not t_name:
         raise ValueError("Chưa điền đủ Client ID, Client Secret, Refresh Token hoặc Pub/Sub Topic Name.")
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    req_timeout = httpx.Timeout(30.0, connect=10.0, read=30.0)
+    async with httpx.AsyncClient(timeout=req_timeout) as client:
         token_url = "https://oauth2.googleapis.com/token"
-        res = await client.post(token_url, data={
+        token_data = {
             "client_id": c_id,
             "client_secret": c_sec,
             "refresh_token": r_tok,
             "grant_type": "refresh_token"
-        })
-        if res.status_code != 200:
-            raise ValueError(f"Không thể cấp lại Access Token từ Google: {res.text}")
+        }
+        res = None
+        for attempt in range(3):
+            try:
+                res = await client.post(token_url, data=token_data)
+                if res.status_code == 200:
+                    break
+            except (httpx.TimeoutException, httpx.NetworkError) as te:
+                if attempt == 2:
+                    raise ValueError(f"Kết nối tới Google Token endpoint bị timeout: {te}")
+                await asyncio.sleep(0.5)
+
+        if not res or res.status_code != 200:
+            err_text = res.text if res else "No response"
+            raise ValueError(f"Không thể cấp lại Access Token từ Google: {err_text}")
 
         access_token = res.json().get("access_token")
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
