@@ -4,6 +4,7 @@ import logging
 import requests
 import base64
 import hashlib
+from urllib.parse import quote
 
 logger = logging.getLogger("mbbank-webhook.database")
 
@@ -59,24 +60,40 @@ def encrypt_val(key_name: str, val: str) -> str:
     return f"enc_v1:{encoded}"
 
 def decrypt_val(key_name: str, val: str) -> str:
-    """Decrypts an encrypted string value prefixed with 'enc_v1:'."""
+    """Decrypts an encrypted string value prefixed with 'enc_v1:', trying candidate salts if needed."""
     if not val or not isinstance(val, str):
         return val
     if not val.startswith("enc_v1:"):
         return val
     
+    raw_b64 = val[7:]
     try:
-        raw_b64 = val[7:]
         cipher_bytes = base64.b64decode(raw_b64)
-        key = _derive_key(key_name)
-        plain_bytes = bytearray()
-        for i, b in enumerate(cipher_bytes):
-            k_byte = key[i % len(key)]
-            plain_bytes.append(b ^ k_byte)
-        return plain_bytes.decode("utf-8")
     except Exception as e:
-        logger.warning(f"Failed to decrypt config value for {key_name}: {e}")
+        logger.warning(f"Failed to base64 decode encrypted config for {key_name}: {e}")
         return val
+
+    # Candidate salts to attempt decryption in case environment keys changed
+    salts_to_try = []
+    for s_val in [os.environ.get("ENCRYPTION_SECRET"), os.environ.get("SUPABASE_KEY"), os.environ.get("CALLBACK_SECRET"), "kos-secret-key-salt-2026"]:
+        if s_val and s_val not in salts_to_try:
+            salts_to_try.append(s_val)
+
+    for salt in salts_to_try:
+        try:
+            combined = f"{salt}:{key_name}".encode("utf-8")
+            key = hashlib.sha256(combined).digest()
+            plain_bytes = bytearray()
+            for i, b in enumerate(cipher_bytes):
+                k_byte = key[i % len(key)]
+                plain_bytes.append(b ^ k_byte)
+            return plain_bytes.decode("utf-8")
+        except Exception:
+            continue
+
+    logger.warning(f"Failed to decrypt config value for {key_name} with candidate keys.")
+    return val
+
 
 # Load .env file if it exists (for local development)
 if os.path.exists(".env"):
@@ -263,12 +280,12 @@ def set_config(key, value):
     val_for_db = encrypt_val(key, val_to_save) if key in SENSITIVE_CONFIG_KEYS else val_to_save
 
     # Check if already exists to do PATCH (Update) or POST (Insert)
-    exist_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=key"
+    exist_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{quote(str(key))}&select=key"
     try:
         r_exist = requests.get(exist_url, headers=get_supabase_headers())
         if r_exist.status_code == 200 and r_exist.json():
             # Update
-            url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}"
+            url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{quote(str(key))}"
             requests.patch(url, json={"value": val_for_db}, headers=get_supabase_headers())
         else:
             # Insert
@@ -301,7 +318,7 @@ def get_all_configs():
 def is_transaction_processed(trans_no):
     if db_initialization_error:
         return False
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/processed_transactions?trans_no=eq.{trans_no}&select=trans_no"
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/processed_transactions?trans_no=eq.{quote(str(trans_no))}&select=trans_no"
     try:
         r = requests.get(url, headers=get_supabase_headers())
         if r.status_code == 200:
@@ -385,7 +402,7 @@ def get_pending_payments(limit=50):
 def update_pending_payment_status(payment_id, status):
     if db_initialization_error:
         return
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{payment_id}"
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{quote(str(payment_id))}"
     try:
         requests.patch(url, json={"status": status}, headers=get_supabase_headers())
     except Exception as e:
@@ -394,7 +411,7 @@ def update_pending_payment_status(payment_id, status):
 def get_pending_payment_status(reference_id):
     if db_initialization_error:
         return None
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{reference_id}&select=status&order=created_at.desc&limit=1"
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{quote(str(reference_id))}&select=status&order=created_at.desc&limit=1"
     try:
         r = requests.get(url, headers=get_supabase_headers())
         if r.status_code == 200:
@@ -408,7 +425,7 @@ def get_pending_payment_status(reference_id):
 def get_pending_payment_by_ref(reference_id):
     if db_initialization_error:
         return None
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{reference_id}&order=created_at.desc&limit=1"
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?reference_id=eq.{quote(str(reference_id))}&order=created_at.desc&limit=1"
     try:
         r = requests.get(url, headers=get_supabase_headers())
         if r.status_code == 200:
@@ -422,7 +439,7 @@ def get_pending_payment_by_ref(reference_id):
 def delete_pending_payment(payment_id):
     if db_initialization_error:
         return
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{payment_id}"
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments?id=eq.{quote(str(payment_id))}"
     try:
         requests.delete(url, headers=get_supabase_headers())
     except Exception as e:

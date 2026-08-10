@@ -6,6 +6,7 @@ import html
 import logging
 import base64
 import httpx
+from urllib.parse import quote
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("mbbank-webhook.email")
@@ -167,7 +168,8 @@ def fetch_emails_via_imap(
     gmail_address: str,
     app_password: str,
     sender_filter: Optional[str] = None,
-    max_emails: int = 15
+    max_emails: int = 15,
+    label_filter: Optional[str] = "BankNotify"
 ) -> List[Dict[str, Any]]:
     """Fetches recent emails via Gmail IMAP SSL connection."""
     if not gmail_address or not app_password:
@@ -183,7 +185,12 @@ def fetch_emails_via_imap(
         raise ValueError(f"Lỗi đăng nhập Gmail IMAP. Vui lòng kiểm tra địa chỉ Gmail & Mật khẩu ứng dụng: {e}")
 
     try:
-        mail.select("INBOX")
+        folder = (label_filter or "BankNotify").split(",")[0].strip()
+        status_sel, _ = mail.select(f'"{folder}"') if folder.upper() != "INBOX" else ("NO", None)
+        if status_sel != "OK":
+            status_sel, _ = mail.select(folder)
+        if status_sel != "OK":
+            mail.select("INBOX")
         
         status, messages = mail.search(None, "ALL")
         if status != "OK" or not messages or not messages[0]:
@@ -274,7 +281,8 @@ async def fetch_emails_via_oauth2(
     client_secret: str,
     refresh_token: str,
     sender_filter: Optional[str] = None,
-    max_emails: int = 15
+    max_emails: int = 15,
+    label_filter: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Fetches recent emails via Google OAuth2 & Gmail API v1."""
     c_id = (client_id or "").strip()
@@ -301,13 +309,23 @@ async def fetch_emails_via_oauth2(
         headers = {"Authorization": f"Bearer {access_token}"}
 
         # 2. Search Messages
-        q = "label:INBOX"
+        q_parts = []
+        if label_filter and label_filter.strip().upper() != "ALL":
+            labels = [l.strip() for l in label_filter.split(",") if l.strip()]
+            if len(labels) == 1:
+                q_parts.append(f"label:{labels[0]}")
+            elif len(labels) > 1:
+                q_parts.append(f"({' OR '.join([f'label:{l}' for l in labels])})")
+        elif label_filter is None:
+            q_parts.append("label:BankNotify")
+
         if sender_filter:
             senders = [s.strip() for s in sender_filter.split(",") if s.strip()]
             if senders:
-                q += f" from:({' OR '.join(senders)})"
+                q_parts.append(f"from:({' OR '.join(senders)})")
         
-        list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_emails}&q={q}"
+        q = " ".join(q_parts)
+        list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_emails}&q={quote(q)}"
         list_res = await client.get(list_url, headers=headers)
         if list_res.status_code != 200:
             raise ValueError(f"Lỗi truy vấn danh sách email từ Gmail API: {list_res.text}")
@@ -327,20 +345,23 @@ async def fetch_emails_via_oauth2(
 
             msg_json = msg_res.json()
             payload = msg_json.get("payload", {})
-            headers_list = payload.get("headers", [])
+            headers_list = payload.get("headers") or []
             
-            subject = next((h["value"] for h in headers_list if h["name"].lower() == "subject"), "")
-            from_hdr = next((h["value"] for h in headers_list if h["name"].lower() == "from"), "")
-            date_hdr = next((h["value"] for h in headers_list if h["name"].lower() == "date"), "")
-            msg_id = next((h["value"] for h in headers_list if h["name"].lower() == "message-id"), m_id)
+            subject = next((h.get("value", "") for h in headers_list if isinstance(h, dict) and h.get("name", "").lower() == "subject"), "")
+            from_hdr = next((h.get("value", "") for h in headers_list if isinstance(h, dict) and h.get("name", "").lower() == "from"), "")
+            date_hdr = next((h.get("value", "") for h in headers_list if isinstance(h, dict) and h.get("name", "").lower() == "date"), "")
+            msg_id = next((h.get("value", "") for h in headers_list if isinstance(h, dict) and h.get("name", "").lower() == "message-id"), m_id)
 
             html_body = ""
             text_body = ""
 
             def extract_parts(part):
+                if not isinstance(part, dict):
+                    return
                 nonlocal html_body, text_body
                 mime_type = part.get("mimeType", "")
-                body_data = part.get("body", {}).get("data", "")
+                body_dict = part.get("body") or {}
+                body_data = body_dict.get("data", "")
                 
                 if body_data:
                     try:
@@ -353,7 +374,7 @@ async def fetch_emails_via_oauth2(
                     except Exception:
                         pass
 
-                parts = part.get("parts", [])
+                parts = part.get("parts") or []
                 for subpart in parts:
                     extract_parts(subpart)
 
@@ -402,7 +423,7 @@ async def subscribe_gmail_watch(
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
 
         # Resolve label names (e.g. 'BankNotify') to official Gmail label IDs
-        target_labels = label_ids or ["INBOX"]
+        target_labels = label_ids or ["BankNotify"]
         builtin_labels = {"INBOX", "SPAM", "TRASH", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT"}
         resolved_label_ids = []
         

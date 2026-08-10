@@ -317,12 +317,14 @@ async def test_email_connection(authenticated: bool = Depends(get_current_user))
             client_id = gateway_db.get_config("gmail_client_id")
             client_secret = gateway_db.get_config("gmail_client_secret")
             refresh_token = gateway_db.get_config("gmail_refresh_token")
+            label_filter = gateway_db.get_config("gmail_pubsub_label_ids", "BankNotify")
             emails = await email_engine.fetch_emails_via_oauth2(
                 client_id=client_id,
                 client_secret=client_secret,
                 refresh_token=refresh_token,
                 sender_filter=sender_filter,
-                max_emails=5
+                max_emails=5,
+                label_filter=label_filter
             )
         else:
             gmail_address = gateway_db.get_config("gmail_address")
@@ -701,7 +703,7 @@ async def perform_transaction_check(force: bool = False) -> int:
     matches against pending_payments in gateway_db,
     and sends callback webhooks to registered endpoints for matched items.
     """
-    pending = [p for p in gateway_db.get_pending_payments() if p["status"] == "pending"]
+    pending = [p for p in gateway_db.get_pending_payments() if isinstance(p, dict) and p.get("status") == "pending"]
     if not pending:
         logger.info("No pending payments in gateway_db. Nothing to check.")
         return 0
@@ -714,7 +716,7 @@ async def perform_transaction_check(force: bool = False) -> int:
         try:
             auth_method = gateway_db.get_config("email_auth_method", "imap")
             sender_filter = gateway_db.get_config("email_sender_filter", "")
-            
+            label_filter = gateway_db.get_config("gmail_pubsub_label_ids", "BankNotify")
             emails = []
             if auth_method == "oauth2":
                 c_id = gateway_db.get_config("gmail_client_id")
@@ -723,7 +725,12 @@ async def perform_transaction_check(force: bool = False) -> int:
                 if c_id and c_sec and r_tok:
                     fetch_limit = 3 if force else 15
                     emails = await email_engine.fetch_emails_via_oauth2(
-                        client_id=c_id, client_secret=c_sec, refresh_token=r_tok, sender_filter=sender_filter, max_emails=fetch_limit
+                        client_id=c_id,
+                        client_secret=c_sec,
+                        refresh_token=r_tok,
+                        sender_filter=sender_filter,
+                        max_emails=fetch_limit,
+                        label_filter=label_filter
                     )
 
             else:
@@ -732,7 +739,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                 if g_addr and g_pass:
                     emails = await asyncio.to_thread(
                         email_engine.fetch_emails_via_imap,
-                        gmail_address=g_addr, app_password=g_pass, sender_filter=sender_filter, max_emails=15
+                        gmail_address=g_addr, app_password=g_pass, sender_filter=sender_filter, max_emails=15, label_filter=label_filter
                     )
 
             if emails:
@@ -743,17 +750,17 @@ async def perform_transaction_check(force: bool = False) -> int:
 
                 for em in emails:
                     parsed = email_engine.parse_bank_email_html(
-                        html_content=em["html"],
+                        html_content=em.get("html", ""),
                         regex_amount=r_amt,
                         regex_content=r_cnt,
                         regex_trans_no=r_trn,
                         regex_date=r_dat
                     )
                     
-                    credit_amount = parsed["amount"]
-                    email_content = (parsed["content"] or "").upper().strip()
-                    full_raw_text = (parsed["raw_text"] or "").upper().strip()
-                    trans_no = parsed["trans_no"] or em["msg_id"]
+                    credit_amount = float(parsed.get("amount") or 0.0)
+                    email_content = (parsed.get("content") or "").upper().strip()
+                    full_raw_text = (parsed.get("raw_text") or "").upper().strip()
+                    trans_no = parsed.get("trans_no") or em.get("msg_id", "")
                     
                     if credit_amount <= 0:
                         continue
@@ -763,18 +770,27 @@ async def perform_transaction_check(force: bool = False) -> int:
                         continue
 
                     for pay in pending:
-                        if pay['status'] != 'pending':
+                        if not isinstance(pay, dict) or pay.get('status') != 'pending':
                             continue
                         
-                        pay_content = pay['content'].upper().strip()
+                        pay_content = (pay.get('content') or "").upper().strip()
+                        if not pay_content:
+                            continue
+
                         content_matched = (pay_content in email_content) or (pay_content in full_raw_text)
-                        amount_matched = abs(float(pay['amount']) - credit_amount) < 1.0
+                        
+                        try:
+                            pay_amount = float(pay.get('amount') or 0.0)
+                        except (ValueError, TypeError):
+                            pay_amount = 0.0
+
+                        amount_matched = abs(pay_amount - credit_amount) < 1.0
 
                         if content_matched and amount_matched:
-                            logger.info(f"EMAIL MATCH FOUND: Trans {trans_no} matches pending payment {pay['id']}!")
+                            logger.info(f"EMAIL MATCH FOUND: Trans {trans_no} matches pending payment {pay.get('id')}!")
                             
-                            details_text = f"Email ({em['from']}): {parsed['content'] or em['subject']}"
-                            txn_date = parsed["date"] or em["date"]
+                            details_text = f"Email ({em.get('from', '')}): {parsed.get('content') or em.get('subject', '')}"
+                            txn_date = parsed.get("date") or em.get("date", "")
 
                             success = gateway_db.add_processed_transaction(
                                 trans_no=trans_no,
@@ -784,11 +800,13 @@ async def perform_transaction_check(force: bool = False) -> int:
                             )
                             
                             if success:
-                                gateway_db.update_pending_payment_status(pay['id'], 'completed')
+                                pay_id = pay.get('id')
+                                if pay_id:
+                                    gateway_db.update_pending_payment_status(pay_id, 'completed')
                                 class DummyTxn:
                                     creditAmount = str(credit_amount)
                                     refNo = trans_no
-                                    description = parsed['content'] or em['subject']
+                                    description = parsed.get('content') or em.get('subject', '')
                                     transactionDate = txn_date
                                 
                                 # Send push webhook (success event)
@@ -797,7 +815,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                                 processed_count += 1
                                 break
         except Exception as e:
-            logger.error(f"Error checking email bank transactions: {e}")
+            logger.error(f"Error checking email bank transactions: {e}", exc_info=True)
 
     return processed_count
 
@@ -984,7 +1002,7 @@ async def ensure_gmail_watch_active():
         c_id = gateway_db.get_config("gmail_client_id")
         c_sec = gateway_db.get_config("gmail_client_secret")
         r_tok = gateway_db.get_config("gmail_refresh_token")
-        label_cfg = gateway_db.get_config("gmail_pubsub_label_ids", "INBOX")
+        label_cfg = gateway_db.get_config("gmail_pubsub_label_ids", "BankNotify")
         labels_list = [l.strip() for l in label_cfg.split(",") if l.strip()]
         if c_id and c_sec and r_tok:
             try:
@@ -1037,7 +1055,7 @@ async def subscribe_gmail_watch_endpoint(
     if not c_id or not c_sec or not r_tok:
         raise HTTPException(status_code=400, detail="Chưa cấu hình Google OAuth2 Client ID/Secret/Refresh Token.")
 
-    labels_list = [l.strip() for l in label_ids.split(",") if l.strip()] if label_ids else ["INBOX"]
+    labels_list = [l.strip() for l in label_ids.split(",") if l.strip()] if label_ids else ["BankNotify"]
 
     try:
         res = await email_engine.subscribe_gmail_watch(
