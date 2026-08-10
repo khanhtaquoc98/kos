@@ -370,3 +370,77 @@ async def fetch_emails_via_oauth2(
                 })
 
         return results
+
+async def subscribe_gmail_watch(
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    topic_name: str,
+    label_ids: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """Registers Gmail Push Notifications via Google Pub/Sub topic."""
+    c_id = (client_id or "").strip()
+    c_sec = (client_secret or "").strip()
+    r_tok = (refresh_token or "").strip()
+    t_name = (topic_name or "").strip()
+    
+    if not c_id or not c_sec or not r_tok or not t_name:
+        raise ValueError("Chưa điền đủ Client ID, Client Secret, Refresh Token hoặc Pub/Sub Topic Name.")
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        token_url = "https://oauth2.googleapis.com/token"
+        res = await client.post(token_url, data={
+            "client_id": c_id,
+            "client_secret": c_sec,
+            "refresh_token": r_tok,
+            "grant_type": "refresh_token"
+        })
+        if res.status_code != 200:
+            raise ValueError(f"Không thể cấp lại Access Token từ Google: {res.text}")
+
+        access_token = res.json().get("access_token")
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+        # Resolve label names (e.g. 'BankNotify') to official Gmail label IDs
+        target_labels = label_ids or ["INBOX"]
+        builtin_labels = {"INBOX", "SPAM", "TRASH", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT"}
+        resolved_label_ids = []
+        
+        if any(l not in builtin_labels for l in target_labels):
+            try:
+                labels_url = "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+                l_res = await client.get(labels_url, headers=headers)
+                if l_res.status_code == 200:
+                    user_labels = l_res.json().get("labels", [])
+                    label_map = {lbl["name"].lower(): lbl["id"] for lbl in user_labels}
+                    label_map.update({lbl["id"].lower(): lbl["id"] for lbl in user_labels})
+                    
+                    for l_name in target_labels:
+                        found_id = label_map.get(l_name.lower())
+                        if found_id:
+                            resolved_label_ids.append(found_id)
+                        else:
+                            resolved_label_ids.append(l_name)
+                else:
+                    resolved_label_ids = target_labels
+            except Exception as ex:
+                logger.warning(f"Could not resolve label IDs from Gmail API: {ex}")
+                resolved_label_ids = target_labels
+        else:
+            resolved_label_ids = target_labels
+
+        watch_url = "https://gmail.googleapis.com/gmail/v1/users/me/watch"
+        body = {
+            "topicName": t_name,
+            "labelIds": resolved_label_ids
+        }
+        
+        watch_res = await client.post(watch_url, headers=headers, json=body)
+        if watch_res.status_code != 200:
+            raise ValueError(f"Lỗi kích hoạt Gmail Watch Push: {watch_res.text}")
+            
+        res_data = watch_res.json()
+        res_data["resolved_label_ids"] = resolved_label_ids
+        return res_data
+
+

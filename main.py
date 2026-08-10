@@ -5,6 +5,7 @@ import uuid
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
+import base64
 
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -507,21 +508,25 @@ async def delete_all_pending_payments_endpoint(authenticated: bool = Depends(get
 @app.get("/api/cron")
 async def cron_trigger(secret: Optional[str] = None, request: Request = None):
     """Secure endpoint for Vercel Cron or other automated pollers to trigger check."""
+    is_vercel_cron = (request.headers.get("x-vercel-cron") == "1") if request else False
     expected_secret = os.environ.get("CRON_SECRET") or gateway_db.get_config("callback_secret")
-    auth_header = request.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization") if request else None
     header_token = None
     if auth_header and auth_header.startswith("Bearer "):
         header_token = auth_header.split(" ")[1]
         
-    if secret != expected_secret and header_token != expected_secret:
+    if not is_vercel_cron and secret != expected_secret and header_token != expected_secret:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized: invalid secret token"
         )
+
         
     try:
+        asyncio.create_task(ensure_gmail_watch_active())
         count = await perform_transaction_check()
         return {"success": True, "processed_count": count}
+
     except Exception as e:
         logger.error(f"Cron scan failed: {e}")
         return {"success": False, "error": str(e)}
@@ -934,3 +939,135 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
                 logger.error(f"Webhook delivery failed to {target_url}. Status: {res.status_code}: {res.text}")
     except Exception as e:
         logger.error(f"Failed to connect to webhook URL {target_url}: {e}")
+
+@app.post("/api/webhooks/gmail-push")
+async def gmail_push_webhook(request: Request):
+    """
+    Webhook endpoint to receive Google Cloud Pub/Sub push notifications for incoming Gmail emails.
+    Triggers immediate bank email scan and sends callback push webhook to the merchant.
+    """
+    try:
+        body = await request.json()
+        message = body.get("message", {})
+        data_b64 = message.get("data")
+        if data_b64:
+            decoded_data = base64.b64decode(data_b64).decode("utf-8")
+            logger.info(f"Received Gmail Pub/Sub Push notification: {decoded_data}")
+        
+        # Trigger immediate background scan and push webhook matching
+        asyncio.create_task(perform_transaction_check(force=True))
+        return {"success": True, "message": "Gmail Push notification received"}
+    except Exception as e:
+        logger.error(f"Error handling Gmail Push notification: {e}")
+        return {"success": False, "error": str(e)}
+
+async def ensure_gmail_watch_active():
+    """
+    Checks if Gmail Watch is close to expiration (< 48 hours remaining) or expired,
+    and automatically renews it with Google Cloud Pub/Sub.
+    """
+    topic_name = gateway_db.get_config("gmail_pubsub_topic")
+    if not topic_name:
+        return
+
+    exp_str = gateway_db.get_config("gmail_watch_expiration", "0")
+    try:
+        exp_ms = int(exp_str)
+    except ValueError:
+        exp_ms = 0
+
+    now_ms = int(datetime.utcnow().timestamp() * 1000)
+    # Renew if expired or will expire within 48 hours
+    if exp_ms - now_ms < (48 * 3600 * 1000):
+        c_id = gateway_db.get_config("gmail_client_id")
+        c_sec = gateway_db.get_config("gmail_client_secret")
+        r_tok = gateway_db.get_config("gmail_refresh_token")
+        label_cfg = gateway_db.get_config("gmail_pubsub_label_ids", "INBOX")
+        labels_list = [l.strip() for l in label_cfg.split(",") if l.strip()]
+        if c_id and c_sec and r_tok:
+            try:
+                res = await email_engine.subscribe_gmail_watch(
+                    client_id=c_id,
+                    client_secret=c_sec,
+                    refresh_token=r_tok,
+                    topic_name=topic_name,
+                    label_ids=labels_list
+                )
+
+                new_exp = res.get("expiration")
+                if new_exp:
+                    gateway_db.set_config("gmail_watch_expiration", str(new_exp))
+                    exp_dt = datetime.fromtimestamp(int(new_exp) / 1000.0).strftime('%Y-%m-%d %H:%M:%S')
+                    logger.info(f"Auto-renewed Gmail Watch successfully! New expiration: {new_exp}")
+                    
+                    tele_msg = (
+                        f"🤖 <b>[KOS GATEWAY] GIA HẠN GMAIL WATCH PUSH</b>\n"
+                        f"---------------------------------\n"
+                        f"✅ <b>Trạng thái:</b> Tự động gia hạn thành công (+7 ngày)\n"
+                        f"📢 <b>Pub/Sub Topic:</b> <code>{topic_name}</code>\n"
+                        f"⏱️ <b>Thời điểm hết hạn mới:</b> {exp_dt} UTC"
+                    )
+                    asyncio.create_task(send_telegram_notification(tele_msg))
+            except Exception as e:
+                logger.error(f"Failed to auto-renew Gmail Watch: {e}")
+                err_msg = (
+                    f"🚨 <b>[KOS GATEWAY] LỖI GIA HẠN GMAIL WATCH PUSH</b>\n"
+                    f"---------------------------------\n"
+                    f"🔴 <b>Chi tiết lỗi:</b> {str(e)}\n"
+                    f"📢 <b>Pub/Sub Topic:</b> <code>{topic_name}</code>"
+                )
+                asyncio.create_task(send_telegram_notification(err_msg))
+
+@app.post("/api/admin/gmail-watch/subscribe")
+async def subscribe_gmail_watch_endpoint(
+    topic_name: str, 
+    label_ids: Optional[str] = "BankNotify", 
+    authenticated: bool = Depends(get_current_user)
+):
+    """
+    Enables Google Cloud Pub/Sub Push Watch for Gmail inbox or custom label.
+    Requires topic_name in format: projects/YOUR_PROJECT/topics/YOUR_TOPIC
+    label_ids can be 'BankNotify', 'INBOX', etc.
+    """
+    c_id = gateway_db.get_config("gmail_client_id")
+    c_sec = gateway_db.get_config("gmail_client_secret")
+    r_tok = gateway_db.get_config("gmail_refresh_token")
+    if not c_id or not c_sec or not r_tok:
+        raise HTTPException(status_code=400, detail="Chưa cấu hình Google OAuth2 Client ID/Secret/Refresh Token.")
+
+    labels_list = [l.strip() for l in label_ids.split(",") if l.strip()] if label_ids else ["INBOX"]
+
+    try:
+        res = await email_engine.subscribe_gmail_watch(
+            client_id=c_id,
+            client_secret=c_sec,
+            refresh_token=r_tok,
+            topic_name=topic_name,
+            label_ids=labels_list
+        )
+        gateway_db.set_config("gmail_pubsub_topic", topic_name)
+        gateway_db.set_config("gmail_pubsub_label_ids", ",".join(labels_list))
+        if res.get("expiration"):
+            exp_val = str(res.get("expiration"))
+            gateway_db.set_config("gmail_watch_expiration", exp_val)
+            exp_dt = datetime.fromtimestamp(int(exp_val) / 1000.0).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            exp_dt = "Không xác định"
+
+        tele_msg = (
+            f"🔔 <b>[KOS GATEWAY] KÍCH HOẠT GMAIL PUSH WATCH SUCCESS</b>\n"
+            f"---------------------------------\n"
+            f"✅ <b>Trạng thái:</b> Đã kết nối Pub/Sub Push thành công!\n"
+            f"📢 <b>Topic:</b> <code>{topic_name}</code>\n"
+            f"🏷️ <b>Label:</b> <code>{','.join(labels_list)}</code>\n"
+            f"⏱️ <b>Thời điểm hết hạn:</b> {exp_dt} UTC"
+        )
+        asyncio.create_task(send_telegram_notification(tele_msg))
+
+        return {"success": True, "data": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+

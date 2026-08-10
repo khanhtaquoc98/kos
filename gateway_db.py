@@ -194,20 +194,25 @@ ENV_KEYS_MAP = {
     "telegram_notify_active": "TELEGRAM_NOTIFY_ACTIVE",
 }
 
+_config_cache = {}
+_cache_timestamp = 0.0
+CONFIG_CACHE_TTL = 60.0  # seconds
+
+def _refresh_config_cache_if_needed():
+    global _config_cache, _cache_timestamp
+    now = time.time()
+    if not _config_cache or (now - _cache_timestamp > CONFIG_CACHE_TTL):
+        all_cfgs = get_all_configs()
+        if all_cfgs:
+            _config_cache = all_cfgs
+            _cache_timestamp = now
+
 def get_config(key, default=None):
     if not db_initialization_error:
-        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=value"
-        try:
-            r = requests.get(url, headers=get_supabase_headers())
-            if r.status_code == 200:
-                data = r.json()
-                if data and data[0]["value"] is not None and data[0]["value"] != "":
-                    raw_val = data[0]["value"]
-                    if key in SENSITIVE_CONFIG_KEYS:
-                        return decrypt_val(key, raw_val)
-                    return raw_val
-        except Exception as e:
-            logger.error(f"Supabase get_config error: {e}")
+        _refresh_config_cache_if_needed()
+        val = _config_cache.get(key)
+        if val is not None and val != "":
+            return val
 
     # Fallback to Environment Variables (.env)
     env_var_name = ENV_KEYS_MAP.get(key)
@@ -228,11 +233,16 @@ def get_config(key, default=None):
     return default
 
 def set_config(key, value):
+    global _config_cache, _cache_timestamp
     if db_initialization_error:
         return
     val_to_save = str(value)
-    if key in SENSITIVE_CONFIG_KEYS:
-        val_to_save = encrypt_val(key, val_to_save)
+    
+    # Update memory cache immediately
+    _config_cache[key] = val_to_save
+    _cache_timestamp = time.time()
+
+    val_for_db = encrypt_val(key, val_to_save) if key in SENSITIVE_CONFIG_KEYS else val_to_save
 
     # Check if already exists to do PATCH (Update) or POST (Insert)
     exist_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}&select=key"
@@ -241,11 +251,11 @@ def set_config(key, value):
         if r_exist.status_code == 200 and r_exist.json():
             # Update
             url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config?key=eq.{key}"
-            requests.patch(url, json={"value": val_to_save}, headers=get_supabase_headers())
+            requests.patch(url, json={"value": val_for_db}, headers=get_supabase_headers())
         else:
             # Insert
             url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/config"
-            requests.post(url, json={"key": key, "value": val_to_save}, headers=get_supabase_headers())
+            requests.post(url, json={"key": key, "value": val_for_db}, headers=get_supabase_headers())
     except Exception as e:
         logger.error(f"Supabase set_config error: {e}")
 
