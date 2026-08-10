@@ -1021,9 +1021,10 @@ async def ensure_gmail_watch_active():
 @app.post("/api/admin/gmail-watch/subscribe")
 async def subscribe_gmail_watch_endpoint(
     topic_name: str, 
-    label_ids: Optional[str] = "BankNotify", 
+    label_ids: Optional[str] = "INBOX", 
     authenticated: bool = Depends(get_current_user)
 ):
+
     """
     Enables Google Cloud Pub/Sub Push Watch for Gmail inbox or custom label.
     Requires topic_name in format: projects/YOUR_PROJECT/topics/YOUR_TOPIC
