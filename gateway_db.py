@@ -7,8 +7,24 @@ import hashlib
 
 logger = logging.getLogger("mbbank-webhook.database")
 
-# Encryption Secret Key derived from environment variable
-SECRET_SALT = os.environ.get("ENCRYPTION_SECRET") or os.environ.get("SUPABASE_KEY") or os.environ.get("CALLBACK_SECRET") or "kos-secret-key-salt-2026"
+# Load .env file automatically if present
+def load_env_file():
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+load_env_file()
 
 SENSITIVE_CONFIG_KEYS = {
     "admin_password",
@@ -20,8 +36,10 @@ SENSITIVE_CONFIG_KEYS = {
 
 def _derive_key(key_name: str) -> bytes:
     """Derives a byte key for the specific config key using SHA-256."""
-    combined = f"{SECRET_SALT}:{key_name}".encode("utf-8")
+    salt = os.environ.get("ENCRYPTION_SECRET") or os.environ.get("SUPABASE_KEY") or os.environ.get("CALLBACK_SECRET") or "kos-secret-key-salt-2026"
+    combined = f"{salt}:{key_name}".encode("utf-8")
     return hashlib.sha256(combined).digest()
+
 
 def encrypt_val(key_name: str, val: str) -> str:
     """Encrypts a sensitive string value into a base64 encoded string prefixed with 'enc_v1:'."""
