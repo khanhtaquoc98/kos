@@ -147,6 +147,8 @@ class ConfigUpdate(BaseModel):
     mb_account_name: Optional[str] = ""
     default_callback_url: Optional[str] = ""
     email_auth_method: Optional[str] = "oauth2"
+    email_sender_filter: Optional[str] = ""
+    gmail_pubsub_label_ids: Optional[str] = "BankNotify"
     gmail_address: Optional[str] = ""
     gmail_app_password: Optional[str] = ""
     gmail_refresh_token: Optional[str] = ""
@@ -287,6 +289,10 @@ async def admin_config_post(cfg: ConfigUpdate, authenticated: bool = Depends(get
         gateway_db.set_config("mb_account_name", cfg.mb_account_name or "")
         gateway_db.set_config("default_callback_url", cfg.default_callback_url or "")
         gateway_db.set_config("email_auth_method", cfg.email_auth_method or "oauth2")
+        if cfg.email_sender_filter is not None:
+            gateway_db.set_config("email_sender_filter", cfg.email_sender_filter)
+        if cfg.gmail_pubsub_label_ids is not None:
+            gateway_db.set_config("gmail_pubsub_label_ids", cfg.gmail_pubsub_label_ids)
         if cfg.gmail_address:
             gateway_db.set_config("gmail_address", cfg.gmail_address)
         if cfg.gmail_app_password:
