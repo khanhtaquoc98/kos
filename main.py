@@ -958,7 +958,7 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
                 else:
                     logger.error(f"Webhook delivery failed to {target_url}. Status: {res.status_code}: {res.text}")
         except Exception as e:
-            logger.error(f"Failed to connect to webhook URL {target_url}: {e}")
+            logger.error(f"Failed to connect to webhook URL {target_url}: {e}", exc_info=True)
 
     # Send Telegram notification in background
     bank_code = gateway_db.get_config("mb_bank_code", "MB")

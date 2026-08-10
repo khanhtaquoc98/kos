@@ -341,9 +341,22 @@ async def fetch_emails_via_oauth2(
         
         q = " ".join(q_parts)
         list_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_emails}&q={quote(q)}"
-        list_res = await client.get(list_url, headers=headers)
-        if list_res.status_code != 200:
-            raise ValueError(f"Lỗi truy vấn danh sách email từ Gmail API: {list_res.text}")
+        
+        list_res = None
+        for attempt in range(3):
+            try:
+                list_res = await client.get(list_url, headers=headers)
+                if list_res.status_code == 200:
+                    break
+            except (httpx.TimeoutException, httpx.NetworkError) as te:
+                if attempt == 2:
+                    logger.warning(f"Timeout fetching Gmail list: {te}")
+                    return []
+                await asyncio.sleep(0.5)
+
+        if not list_res or list_res.status_code != 200:
+            err_text = list_res.text if list_res else "No response"
+            raise ValueError(f"Lỗi truy vấn danh sách email từ Gmail API: {err_text}")
 
         messages_data = list_res.json().get("messages", [])
         if not messages_data:
@@ -354,8 +367,18 @@ async def fetch_emails_via_oauth2(
         for m_item in messages_data:
             m_id = m_item["id"]
             msg_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m_id}?format=full"
-            msg_res = await client.get(msg_url, headers=headers)
-            if msg_res.status_code != 200:
+            msg_res = None
+            for attempt in range(3):
+                try:
+                    msg_res = await client.get(msg_url, headers=headers)
+                    if msg_res.status_code == 200:
+                        break
+                except (httpx.TimeoutException, httpx.NetworkError):
+                    if attempt == 2:
+                        break
+                    await asyncio.sleep(0.3)
+
+            if not msg_res or msg_res.status_code != 200:
                 continue
 
             msg_json = msg_res.json()
