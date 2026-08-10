@@ -713,6 +713,7 @@ async def perform_transaction_check(force: bool = False) -> int:
     matches against pending_payments in gateway_db,
     and sends callback webhooks to registered endpoints for matched items.
     """
+    import re
     pending = [p for p in gateway_db.get_pending_payments() if isinstance(p, dict) and p.get("status") == "pending"]
     if not pending:
         logger.info("No pending payments in gateway_db. Nothing to check.")
