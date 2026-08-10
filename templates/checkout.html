@@ -292,6 +292,52 @@
             color: var(--success-color);
         }
 
+        /* QR Action Buttons (Copy & Download) */
+        .qr-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            margin-bottom: 6px;
+            width: 100%;
+            max-width: 240px;
+        }
+
+        .qr-action-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 9px 12px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .qr-action-btn:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            color: #0f172a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .qr-action-btn:active {
+            transform: translateY(0);
+        }
+
+        .qr-action-btn.success {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--success-color);
+        }
+
         /* Status Indicator Banner */
         .status-badge {
             display: none !important;
@@ -583,6 +629,27 @@
                     <img src="" alt="VietQR MB Bank" class="qr-img" id="vietqr-image">
                 </div>
 
+                <!-- Action Buttons: Copy & Download QR Image -->
+                <div class="qr-actions">
+                    <button class="qr-action-btn" id="btn-copy-qr" onclick="copyQRImage()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span>Sao chép QR</span>
+                    </button>
+                    <button class="qr-action-btn" id="btn-download-qr" onclick="downloadQRImage()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Tải ảnh QR</span>
+                    </button>
+                </div>
+
                 <p class="instruction-text">
                     Mở ứng dụng ngân hàng hoặc ví điện tử để quét mã thanh toán.
                 </p>
@@ -779,6 +846,107 @@
             setTimeout(() => {
                 toast.classList.remove("show");
             }, 2500);
+        }
+
+        // Helper to get PNG Blob of QR Code
+        async function getQRPngBlob() {
+            const qrImg = document.getElementById("vietqr-image");
+            if (!qrImg || !qrImg.src) throw new Error("Chưa có hình QR");
+
+            try {
+                const res = await fetch(qrImg.src, { mode: 'cors' });
+                if (!res.ok) throw new Error("Fetch QR status: " + res.status);
+                const rawBlob = await res.blob();
+                return new Blob([rawBlob], { type: 'image/png' });
+            } catch (err) {
+                console.warn("Direct QR fetch failed, using canvas fallback...", err);
+                return await renderImageToBlob(qrImg.src);
+            }
+        }
+
+        function renderImageToBlob(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.naturalWidth || 300;
+                    canvas.height = img.naturalHeight || 300;
+                    const ctx = canvas.getContext("2d");
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    canvas.toBlob((blob) => {
+                        if (blob) resolve(blob);
+                        else reject(new Error("Canvas toBlob failed"));
+                    }, "image/png");
+                };
+                img.onerror = () => reject(new Error("Image load error"));
+                img.src = src;
+            });
+        }
+
+        // Copy QR Image to Clipboard
+        async function copyQRImage() {
+            const btn = document.getElementById("btn-copy-qr");
+            const originalHTML = btn.innerHTML;
+
+            try {
+                if (!navigator.clipboard || !window.ClipboardItem) {
+                    showToast("Trình duyệt không hỗ trợ copy hình trực tiếp. Vui lòng bấm 'Tải ảnh QR'!");
+                    return;
+                }
+
+                const blob = await getQRPngBlob();
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+
+                btn.classList.add("success");
+                btn.innerHTML = `${CHECK_SVG} <span>Đã copy!</span>`;
+                showToast("Đã sao chép hình QR vào bộ nhớ tạm!");
+
+                setTimeout(() => {
+                    btn.classList.remove("success");
+                    btn.innerHTML = originalHTML;
+                }, 2500);
+            } catch (err) {
+                console.error("Copy QR Image failed:", err);
+                showToast("Không thể copy hình. Vui lòng thử nút 'Tải ảnh QR'!");
+            }
+        }
+
+        // Download QR Image
+        async function downloadQRImage() {
+            const btn = document.getElementById("btn-download-qr");
+            const originalHTML = btn.innerHTML;
+
+            try {
+                const blob = await getQRPngBlob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = objectUrl;
+                const fileName = `VietQR_${bankCode}_${accountNo}_${orderCode || orderId || 'payment'}.png`;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+                btn.classList.add("success");
+                btn.innerHTML = `${CHECK_SVG} <span>Đã tải!</span>`;
+                showToast("Đã tải hình QR về máy!");
+
+                setTimeout(() => {
+                    btn.classList.remove("success");
+                    btn.innerHTML = originalHTML;
+                }, 2500);
+            } catch (err) {
+                console.error("Download QR Image failed:", err);
+                showToast("Không thể tải hình QR về máy.");
+            }
         }
 
         // Circular Timer Function (runs in background, keeps track of the 3-minute limit)

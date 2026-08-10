@@ -475,6 +475,15 @@
                     <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23fff'/><text x='50' y='55' font-family='sans-serif' font-size='10' text-anchor='middle' fill='%23ccc'>Chưa tạo QR</text></svg>" alt="VietQR" class="qr-image" id="vietqr-img">
                 </div>
 
+                <div style="display: flex; gap: 10px; margin-top: 12px; width: 100%; max-width: 220px;">
+                    <button class="btn" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" id="btn-copy-qr-demo" onclick="copyDemoQR()">
+                        📋 Copy QR
+                    </button>
+                    <button class="btn" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" id="btn-download-qr-demo" onclick="downloadDemoQR()">
+                        💾 Tải QR
+                    </button>
+                </div>
+
                 <div class="countdown-timer" id="timer">05:00</div>
 
                 <div class="status-banner status-pending" id="status-banner">
@@ -637,7 +646,7 @@
             document.getElementById("btn-create-payment").disabled = true;
             document.getElementById("amount").disabled = true;
             document.getElementById("order-content").disabled = true;
-            
+
             const qrContainer = document.getElementById("qr-container");
             qrContainer.style.opacity = "1";
             qrContainer.style.pointerEvents = "auto";
@@ -838,6 +847,77 @@
 
             const orderCode = generateRandomOrderCode();
             document.getElementById("order-content").value = `PAY ${orderCode}`;
+        }
+
+        async function getDemoQRPngBlob() {
+            const qrImg = document.getElementById("vietqr-img");
+            if (!qrImg || !qrImg.src || qrImg.src.startsWith("data:image/svg")) throw new Error("Chưa tạo mã QR!");
+
+            try {
+                const res = await fetch(qrImg.src, { mode: 'cors' });
+                if (!res.ok) throw new Error("Fetch QR error: " + res.status);
+                const rawBlob = await res.blob();
+                return new Blob([rawBlob], { type: 'image/png' });
+            } catch (err) {
+                console.warn("Direct fetch failed, falling back to canvas...", err);
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = img.naturalWidth || 300;
+                        canvas.height = img.naturalHeight || 300;
+                        const ctx = canvas.getContext("2d");
+                        ctx.fillStyle = "#ffffff";
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((b) => b ? resolve(b) : reject(new Error("Canvas blob error")), "image/png");
+                    };
+                    img.onerror = reject;
+                    img.src = qrImg.src;
+                });
+            }
+        }
+
+        async function copyDemoQR() {
+            const btn = document.getElementById("btn-copy-qr-demo");
+            const orig = btn.innerText;
+            try {
+                if (!navigator.clipboard || !window.ClipboardItem) {
+                    showToast("Trình duyệt không hỗ trợ sao chép ảnh trực tiếp.");
+                    return;
+                }
+                const blob = await getDemoQRPngBlob();
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                btn.innerText = "✅ Đã Copy!";
+                showToast("Đã sao chép hình QR vào bộ nhớ tạm!");
+                setTimeout(() => btn.innerText = orig, 2500);
+            } catch (err) {
+                console.error("Copy QR demo failed:", err);
+                showToast("Vui lòng ấn 'Tải QR' thay thế!");
+            }
+        }
+
+        async function downloadDemoQR() {
+            const btn = document.getElementById("btn-download-qr-demo");
+            const orig = btn.innerText;
+            try {
+                const blob = await getDemoQRPngBlob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `VietQR_Demo_${currentRefId || 'payment'}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                btn.innerText = "✅ Đã Tải!";
+                showToast("Đã tải hình QR về máy!");
+                setTimeout(() => btn.innerText = orig, 2500);
+            } catch (err) {
+                console.error("Download QR demo failed:", err);
+                showToast("Không thể tải hình QR.");
+            }
         }
     </script>
 </body>
