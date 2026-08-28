@@ -677,8 +677,7 @@
                         order_id: currentRefId,
                         amount: amount,
                         content: content,
-                        callback_url: callbackUrl,
-                        webhook_url: window.location.origin + "/api/webhooks/demo-mock"
+                        callback_url: callbackUrl
                     })
                 });
                 const data = await res.json();

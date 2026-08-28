@@ -360,7 +360,7 @@ def get_recent_processed_transactions(limit=20):
 
 # ----------------- Pending Payments -----------------
 
-def add_pending_payment(payment_id, reference_id, amount, content, callback_url, webhook_url=""):
+def add_pending_payment(payment_id, reference_id, amount, content, callback_url=""):
     if db_initialization_error:
         return
     url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/pending_payments"
@@ -370,22 +370,12 @@ def add_pending_payment(payment_id, reference_id, amount, content, callback_url,
         "amount": float(amount),
         "content": content,
         "callback_url": callback_url or "",
-        "webhook_url": webhook_url or "",
         "status": "pending"
     }
     try:
         r = requests.post(url, json=payload, headers=get_supabase_headers())
         if r.status_code not in [200, 201]:
-            # Fallback for legacy database schema if webhook_url column does not exist yet
-            payload_legacy = {
-                "id": payment_id,
-                "reference_id": reference_id,
-                "amount": float(amount),
-                "content": content,
-                "callback_url": callback_url or webhook_url or "",
-                "status": "pending"
-            }
-            requests.post(url, json=payload_legacy, headers=get_supabase_headers())
+            logger.error(f"Supabase add_pending_payment error: HTTP {r.status_code} - {r.text}")
     except Exception as e:
         logger.error(f"Supabase add_pending_payment error: {e}")
 

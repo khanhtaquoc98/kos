@@ -120,7 +120,6 @@ class CreatePaymentRequest(BaseModel):
     amount: float
     content: str
     callback_url: Optional[str] = ""
-    webhook_url: Optional[str] = ""
 
 class CancelPaymentRequest(BaseModel):
     order_id: Optional[str] = None
@@ -133,7 +132,6 @@ class QRRequest(BaseModel):
     amount: float
     content: str
     callback_url: Optional[str] = ""
-    webhook_url: Optional[str] = ""
 
 class ParseEmailRequest(BaseModel):
     html_content: str
@@ -238,8 +236,7 @@ async def checkout_get(
     orderCode: str = "",
     orderId: str = "",
     order_id: str = "",
-    reference_id: str = "",
-    webhook_url: Optional[str] = None
+    reference_id: str = ""
 ):
     final_order_id = orderId or order_id or orderCode or reference_id
     if not amount or not content or not final_order_id:
@@ -259,8 +256,7 @@ async def checkout_get(
                 reference_id=final_order_id,
                 amount=amount,
                 content=content,
-                callback_url=callback,
-                webhook_url=webhook_url or ""
+                callback_url=callback
             )
             # Trigger async check to quickly see if it's already in the bank
             asyncio.create_task(perform_transaction_check())
@@ -750,8 +746,7 @@ async def create_payment_order(req: CreatePaymentRequest, request: Request):
             reference_id=order_ref,
             amount=req.amount,
             content=content,
-            callback_url=req.callback_url or "",
-            webhook_url=req.webhook_url or ""
+            callback_url=req.callback_url or ""
         )
         asyncio.create_task(perform_transaction_check())
         logger.info(f"Created new payment order: order_id={order_ref}, amount={req.amount}, content={content}")
@@ -762,8 +757,6 @@ async def create_payment_order(req: CreatePaymentRequest, request: Request):
     checkout_url = f"{base_url}/checkout?orderId={quote(order_ref)}&amount={req.amount}&content={quote(content)}"
     if req.callback_url:
         checkout_url += f"&callback={quote(req.callback_url)}"
-    if req.webhook_url:
-        checkout_url += f"&webhook_url={quote(req.webhook_url)}"
 
     account_number = gateway_db.get_config("mb_account_number", "0123456789")
     account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
@@ -825,8 +818,7 @@ async def register_qr_payment(req: QRRequest, request: Request):
             reference_id=order_ref,
             amount=req.amount,
             content=req.content,
-            callback_url=req.callback_url,
-            webhook_url=req.webhook_url
+            callback_url=req.callback_url
         )
         return await create_payment_order(create_req, request)
     except Exception as e:
@@ -1080,7 +1072,7 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
     """
     secret = gateway_db.get_config("callback_secret", "super-secret-callback-token")
     
-    target_url = payment.get("webhook_url") or payment.get("callback_url") or gateway_db.get_config("default_callback_url")
+    target_url = payment.get("callback_url") or gateway_db.get_config("default_callback_url")
     ref_id = payment.get("reference_id") or payment.get("id")
     p_id = payment.get("id")
     amount = float(payment.get("amount") or 0.0)
