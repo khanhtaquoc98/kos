@@ -227,6 +227,8 @@ ENV_KEYS_MAP = {
     "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
     "telegram_chat_id": "TELEGRAM_CHAT_ID",
     "telegram_notify_active": "TELEGRAM_NOTIFY_ACTIVE",
+    "gmail_pubsub_label_ids": "GMAIL_PUBSUB_LABEL_IDS",
+    "gmail_pubsub_topic": "GMAIL_PUBSUB_TOPIC",
 }
 
 _config_cache = {}

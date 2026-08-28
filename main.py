@@ -582,6 +582,152 @@ async def simulate_payment_success(req: SimulatePaymentRequest):
     asyncio.create_task(send_payment_webhook(pay, status="completed", transaction=DummyTxn()))
     return {"success": True, "message": f"Đã giả lập duyệt thanh toán thành công cho đơn {req.order_id}!"}
 
+
+class SandboxEmailSimulateRequest(BaseModel):
+    bank: Optional[str] = "mbbank"  # "mbbank", "vietcombank", "techcombank", "timo", "acb", "vpbank"
+    amount: float
+    content: str
+    trans_no: Optional[str] = None
+    order_id: Optional[str] = None
+
+@app.post("/api/sandbox/simulate-email")
+async def sandbox_simulate_email(req: SandboxEmailSimulateRequest):
+    """
+    Sandbox endpoint: Generates a realistic HTML bank email payload for the specified bank,
+    runs it through the full regex parser and transaction matching pipeline,
+    updates DB status, sends merchant push webhook, and notifies Telegram.
+    """
+    bank_type = (req.bank or "mbbank").lower().strip()
+    amount = float(req.amount)
+    content = req.content.strip()
+    trans_no = req.trans_no or f"FT{int(datetime.utcnow().timestamp())}"
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    amt_formatted = f"{int(amount):,}".replace(",", ".")
+
+    if bank_type == "mbbank":
+        sender = "notification@mbbank.com.vn"
+        html_tpl = f"""
+        <html><body>
+        <h3>THÔNG BÁO BIẾN ĐỘNG SỐ DƯ TÀI KHOẢN MB BANK</h3>
+        <p>Quý khách vừa có giao dịch ghi có tài khoản tại MB Bank.</p>
+        <table>
+            <tr><td>Số tiền ghi có:</td><td>+{amt_formatted} VND</td></tr>
+            <tr><td>Nội dung chuyển khoản:</td><td>{content}</td></tr>
+            <tr><td>Mã giao dịch:</td><td>{trans_no}</td></tr>
+            <tr><td>Thời gian giao dịch:</td><td>{now_str}</td></tr>
+        </table>
+        </body></html>
+        """
+    elif bank_type == "vietcombank":
+        sender = "vietcombank.com.vn"
+        html_tpl = f"""
+        <html><body>
+        <h2>VIETCOMBANK - THÔNG BÁO GIAO DỊCH GHI CÓ</h2>
+        <p>Số tiền ghi có: +{amt_formatted} VND</p>
+        <p>Nội dung GD: {content}</p>
+        <p>Mã GD: {trans_no}</p>
+        <p>Thời gian GD: {now_str}</p>
+        </body></html>
+        """
+    elif bank_type == "techcombank":
+        sender = "techcombank.com.vn"
+        html_tpl = f"""
+        <html><body>
+        <h2>TECHCOMBANK - THÔNG BÁO GHI CÓ</h2>
+        <p>Số tiền ghi có: +{amt_formatted} VND</p>
+        <p>Nội dung giao dịch: {content}</p>
+        <p>Mã GD: {trans_no}</p>
+        <p>Thời gian GD: {now_str}</p>
+        </body></html>
+        """
+    elif bank_type == "timo":
+        sender = "support@timo.vn"
+        html_tpl = f"""
+        <html><body>
+        <p>TA QUOC KHANH thân mến,</p>
+        <p>Tài khoản Spend Account vừa tăng {amt_formatted} VND vào {now_str}.</p>
+        <p>Mô tả: {content}</p>
+        <p>Trân trọng, Timo Digital Bank by BVBank</p>
+        </body></html>
+        """
+    else:
+        sender = "bank-notify@bank.com.vn"
+        html_tpl = f"""
+        <html><body>
+        <p>Số tiền ghi có: +{amt_formatted} VND</p>
+        <p>Nội dung: {content}</p>
+        <p>Mã GD: {trans_no}</p>
+        <p>Ngày GD: {now_str}</p>
+        </body></html>
+        """
+
+    r_amt = gateway_db.get_config("email_parser_regex_amount")
+    r_cnt = gateway_db.get_config("email_parser_regex_content")
+    r_trn = gateway_db.get_config("email_parser_regex_trans_no")
+    r_dat = gateway_db.get_config("email_parser_regex_date")
+
+    parsed = email_engine.parse_bank_email_html(
+        html_content=html_tpl,
+        regex_amount=r_amt,
+        regex_content=r_cnt,
+        regex_trans_no=r_trn,
+        regex_date=r_dat
+    )
+    if not parsed.get("trans_no"):
+        parsed["trans_no"] = trans_no
+
+    pending = [p for p in gateway_db.get_pending_payments() if isinstance(p, dict) and p.get("status") == "pending"]
+    
+    matched_payment = None
+    if req.order_id:
+        for p in pending:
+            if p.get("order_id") == req.order_id or p.get("reference_id") == req.order_id or p.get("id") == req.order_id:
+                matched_payment = p
+                break
+
+    if not matched_payment:
+        for p in pending:
+            p_cnt = (p.get("content") or "").upper().strip()
+            p_amt = float(p.get("amount") or 0.0)
+            if p_cnt and (p_cnt in content.upper() or content.upper() in p_cnt) and abs(p_amt - amount) < 1.0:
+                matched_payment = p
+                break
+
+    match_result = False
+    if matched_payment:
+        success = gateway_db.add_processed_transaction(
+            trans_no=trans_no,
+            amount=amount,
+            details=f"Sandbox Simulation ({bank_type.upper()}): {content}",
+            date=now_str
+        )
+        if success:
+            pay_id = matched_payment.get("id")
+            if pay_id:
+                gateway_db.update_pending_payment_status(pay_id, "completed")
+            
+            class DummyTxn:
+                creditAmount = str(amount)
+                refNo = trans_no
+                description = content
+                transactionDate = now_str
+
+            asyncio.create_task(send_payment_webhook(matched_payment, status="completed", transaction=DummyTxn()))
+            match_result = True
+
+    return {
+        "success": True,
+        "is_sandbox": True,
+        "bank": bank_type,
+        "generated_sender": sender,
+        "generated_html_sample": html_tpl.strip(),
+        "parsed_result": parsed,
+        "matched_payment": matched_payment,
+        "match_success": match_result,
+        "message": f"🧪 Sandbox: Đã giả lập email ngân hàng {bank_type.upper()} & đối soát duyệt đơn thành công!" if match_result else "🧪 Sandbox: Đã giả lập bóc tách email nhưng không tìm thấy đơn hàng chờ khớp (amount/content)."
+    }
+
 @app.post("/api/v1/payment/create")
 @app.post("/api/payment/create")
 async def create_payment_order(req: CreatePaymentRequest, request: Request):
@@ -713,16 +859,15 @@ async def perform_transaction_check(force: bool = False) -> int:
     matches against pending_payments in gateway_db,
     and sends callback webhooks to registered endpoints for matched items.
     """
-    import re
+    # Ensure Gmail Watch PubSub is active & up-to-date with configured labels FIRST
+    asyncio.create_task(ensure_gmail_watch_active())
+
     pending = [p for p in gateway_db.get_pending_payments() if isinstance(p, dict) and p.get("status") == "pending"]
     if not pending:
         logger.info("No pending payments in gateway_db. Nothing to check.")
         return 0
 
     processed_count = 0
-
-    # Ensure Gmail Watch PubSub is active & up-to-date with configured labels
-    asyncio.create_task(ensure_gmail_watch_active())
 
     # ---------------- 1. EMAIL BANK NOTIFICATION SCAN ----------------
     email_active = gateway_db.get_config("email_gateway_active", "true")
@@ -996,14 +1141,30 @@ async def gmail_push_webhook(request: Request):
         message = body.get("message", {})
         data_b64 = message.get("data")
         if data_b64:
-            decoded_data = base64.b64decode(data_b64).decode("utf-8")
+            padded_b64 = data_b64 + "=" * (-len(data_b64) % 4)
+            try:
+                decoded_bytes = base64.urlsafe_b64decode(padded_b64.encode("ascii"))
+            except Exception:
+                decoded_bytes = base64.b64decode(padded_b64.encode("ascii"))
+            decoded_data = decoded_bytes.decode("utf-8", errors="ignore")
             logger.info(f"Received Gmail Pub/Sub Push notification: {decoded_data}")
+
+        label_cfg = gateway_db.get_config("gmail_pubsub_label_ids", "Test")
+        tele_push_msg = (
+            f"📩 <b>[KOS GATEWAY] EMAIL MỚI TỚI (REALTIME PUSH)</b>\n"
+            f"---------------------------------\n"
+            f"⚡ <b>Sự kiện:</b> Google Pub/Sub vừa gửi Webhook thông báo Email mới!\n"
+            f"🏷️ <b>Nhãn theo dõi:</b> <code>{label_cfg}</code>\n"
+            f"⏱️ <b>Thời gian:</b> {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n"
+            f"🔍 Hệ thống đang tiến hành bóc tách email & đối soát..."
+        )
+        asyncio.create_task(send_telegram_notification(tele_push_msg))
         
         # Run transaction scan synchronously on Vercel Serverless before response terminates
         count = await perform_transaction_check(force=True)
         return {"success": True, "message": "Gmail Push notification received", "processed_count": count}
     except Exception as e:
-        logger.error(f"Error handling Gmail Push notification: {e}")
+        logger.error(f"Error handling Gmail Push notification: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
 

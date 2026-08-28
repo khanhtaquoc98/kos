@@ -118,8 +118,13 @@ def parse_bank_email_html(
     try:
         amt_match = re.search(r_amt, plain_text, re.IGNORECASE)
         if amt_match:
-            raw_amt_str = amt_match.group(1).replace(".", "").replace(",", "").strip()
-            amount = float(raw_amt_str)
+            raw_str = amt_match.group(1).strip()
+            # Handle ending decimals e.g. .00 or ,00
+            if re.search(r'[\.,]\d{2}$', raw_str):
+                raw_str = raw_str[:-3]
+            clean_digits = re.sub(r'[^\d]', '', raw_str)
+            if clean_digits:
+                amount = float(clean_digits)
     except Exception as e:
         logger.warning(f"Error parsing amount from email text with regex '{r_amt}': {e}")
 
@@ -128,8 +133,12 @@ def parse_bank_email_html(
         try:
             fallback_match = re.search(r"(?:\+|\+VND|\+VNĐ|Cộng|tăng)\s*([\d\.,]{4,15})", plain_text, re.IGNORECASE)
             if fallback_match:
-                raw_amt_str = fallback_match.group(1).replace(".", "").replace(",", "").strip()
-                amount = float(raw_amt_str)
+                raw_str = fallback_match.group(1).strip()
+                if re.search(r'[\.,]\d{2}$', raw_str):
+                    raw_str = raw_str[:-3]
+                clean_digits = re.sub(r'[^\d]', '', raw_str)
+                if clean_digits:
+                    amount = float(clean_digits)
         except Exception:
             pass
 
@@ -140,6 +149,14 @@ def parse_bank_email_html(
             content = cnt_match.group(1).strip()
     except Exception as e:
         logger.warning(f"Error parsing content from email text with regex '{r_cnt}': {e}")
+
+    if not content:
+        try:
+            fb_cnt_match = re.search(r"(?:Mô tả|Nội dung|NDCK|Description|Chi tiết)[:\s\n]*([^\n<,]+)", plain_text, re.IGNORECASE)
+            if fb_cnt_match:
+                content = fb_cnt_match.group(1).strip()
+        except Exception:
+            pass
 
     # Parse Trans No
     try:
