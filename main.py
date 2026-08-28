@@ -928,6 +928,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                     if gateway_db.is_transaction_processed(trans_no):
                         continue
 
+                    matched = False
                     for pay in pending:
                         if not isinstance(pay, dict) or pay.get('status') != 'pending':
                             continue
@@ -984,7 +985,29 @@ async def perform_transaction_check(force: bool = False) -> int:
                                 asyncio.create_task(send_payment_webhook(pay, status="completed", transaction=DummyTxn()))
                                 
                                 processed_count += 1
+                                matched = True
                                 break
+
+                    # If email contains bank transaction but no order matched, send Telegram alert & record transaction
+                    if not matched:
+                        txn_date = parsed.get("date") or em.get("date", "")
+                        gateway_db.add_processed_transaction(
+                            trans_no=trans_no,
+                            amount=credit_amount,
+                            details=f"Unmatched Email ({em.get('from', '')}): {parsed.get('content') or em.get('subject', '')}",
+                            date=txn_date
+                        )
+                        unmatched_msg = (
+                            f"📥 <b>[KOS GATEWAY] NHẬN EMAIL NGÂN HÀNG MỚI</b>\n"
+                            f"---------------------------------\n"
+                            f"✉️ <b>Tiêu đề:</b> {em.get('subject')}\n"
+                            f"👤 <b>Người gửi:</b> {em.get('from')}\n"
+                            f"💰 <b>Số tiền trích xuất:</b> +{credit_amount:,.0f} VNĐ\n"
+                            f"📝 <b>Nội dung trích xuất:</b> <code>{parsed.get('content') or 'Không có'}</code>\n"
+                            f"💳 <b>Mã giao dịch:</b> <code>{trans_no}</code>\n"
+                            f"ℹ️ <i>Trạng thái: Đã bóc tách email thành công (Hiện chưa có đơn hàng chờ khớp).</i>"
+                        )
+                        asyncio.create_task(send_telegram_notification(unmatched_msg))
         except Exception as e:
             logger.error(f"Error checking email bank transactions: {e}", exc_info=True)
 
