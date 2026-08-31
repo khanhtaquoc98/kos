@@ -23,7 +23,14 @@ async def send_telegram_notification(text: str):
     chat_id = gateway_db.get_config("telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID")
     notify_active = gateway_db.get_config("telegram_notify_active", "true")
     
-    if not bot_token or not chat_id or str(notify_active).lower() == "false":
+    if not bot_token:
+        logger.warning("Telegram notification skipped: telegram_bot_token is missing.")
+        return
+    if not chat_id:
+        logger.warning("Telegram notification skipped: telegram_chat_id is missing.")
+        return
+    if str(notify_active).lower() == "false":
+        logger.info("Telegram notification skipped: telegram_notify_active is disabled.")
         return
         
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -46,7 +53,7 @@ async def send_telegram_notification(text: str):
 async def send_payment_webhook(payment: dict, status: str, transaction: Optional[Any] = None, reason: str = ""):
     """
     Sends a signed HTTP POST push webhook to the client server for both SUCCESS and FAILURE/CANCEL events.
-    Also triggers Telegram notification to admin chat.
+    Also triggers Telegram notification to admin chat immediately.
     """
     secret = gateway_db.get_config("callback_secret", "super-secret-callback-token")
     
@@ -62,6 +69,36 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
     is_success = (status == "completed")
     event_type = "payment.success" if is_success else "payment.failed"
 
+    # 1. Send Telegram notification IMMEDIATELY so admin receives notification without waiting for callback_url
+    bank_code = gateway_db.get_config("mb_bank_code", "MB")
+    if is_success:
+        tele_msg = (
+            f"🎉 <b>[KOS GATEWAY] THANH TOÁN THÀNH CÔNG</b>\n"
+            f"---------------------------------\n"
+            f"💰 <b>Số tiền:</b> +{amount:,.0f} VNĐ\n"
+            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
+            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
+            f"🏛️ <b>Ngân hàng:</b> {bank_code}\n"
+            f"💳 <b>Mã giao dịch:</b> {trans_no or 'N/A'}\n"
+            f"⏱️ <b>Thời gian:</b> {txn_date or 'Vừa xong'}"
+        )
+    else:
+        tele_msg = (
+            f"⚠️ <b>[KOS GATEWAY] ĐƠN HÀNG ĐÃ HỦY</b>\n"
+            f"---------------------------------\n"
+            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
+            f"💰 <b>Số tiền:</b> {amount:,.0f} VNĐ\n"
+            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
+            f"🔴 <b>Trạng thái:</b> {status.upper()}"
+        )
+    
+    # Await telegram notification directly
+    try:
+        await send_telegram_notification(tele_msg)
+    except Exception as e:
+        logger.error(f"Error triggering Telegram notification in send_payment_webhook: {e}")
+
+    # 2. Build Webhook Payload & Send to Merchant Callback URL
     payload = {
         "event": event_type,
         "status": status,  # 'completed', 'cancelled', 'failed'
@@ -85,7 +122,6 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
         "X-Webhook-Signature": signature
     }
     
-    # Send Webhook to Merchant App FIRST for minimum latency
     if target_url:
         logger.info(f"Sending push webhook [{event_type}] to {target_url} for order {ref_id}...")
         try:
@@ -97,31 +133,7 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
                 else:
                     logger.error(f"Webhook delivery failed to {target_url}. Status: {res.status_code}: {res.text}")
         except Exception as e:
-            logger.error(f"Failed to connect to webhook URL {target_url}: {e}", exc_info=True)
-
-    # Send Telegram notification in background
-    bank_code = gateway_db.get_config("mb_bank_code", "MB")
-    if is_success:
-        tele_msg = (
-            f"🎉 <b>[KOS GATEWAY] THANH TOÁN THÀNH CÔNG</b>\n"
-            f"---------------------------------\n"
-            f"💰 <b>Số tiền:</b> +{amount:,.0f} VNĐ\n"
-            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
-            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
-            f"🏛️ <b>Ngân hàng:</b> {bank_code}\n"
-            f"💳 <b>Mã giao dịch:</b> {trans_no or 'N/A'}\n"
-            f"⏱️ <b>Thời gian:</b> {txn_date or 'Vừa xong'}"
-        )
-    else:
-        tele_msg = (
-            f"⚠️ <b>[KOS GATEWAY] ĐƠN HÀNG ĐÃ HỦY</b>\n"
-            f"---------------------------------\n"
-            f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
-            f"💰 <b>Số tiền:</b> {amount:,.0f} VNĐ\n"
-            f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
-            f"🔴 <b>Trạng thái:</b> {status.upper()}"
-        )
-    asyncio.create_task(send_telegram_notification(tele_msg))
+            logger.error(f"Failed to connect to webhook URL {target_url}: {e}")
 
 async def ensure_gmail_watch_active(force: bool = False):
     """
@@ -191,10 +203,6 @@ async def perform_transaction_check(force: bool = False) -> int:
     asyncio.create_task(ensure_gmail_watch_active())
 
     pending = [p for p in gateway_db.get_pending_payments() if isinstance(p, dict) and p.get("status") == "pending"]
-    if not pending:
-        logger.info("No pending payments in gateway_db. Nothing to check.")
-        return 0
-
     processed_count = 0
 
     # ---------------- 1. EMAIL BANK NOTIFICATION SCAN ----------------
@@ -306,11 +314,11 @@ async def perform_transaction_check(force: bool = False) -> int:
                                 class DummyTxn:
                                     creditAmount = str(credit_amount)
                                     refNo = trans_no
-                                    description = parsed.get('content') or em.get('subject', '')
+                                    description = f"Email [{em.get('subject', '')}]: {parsed.get('content') or 'Không có'}"
                                     transactionDate = txn_date
                                 
-                                # Send push webhook (success event)
-                                asyncio.create_task(send_payment_webhook(pay, status="completed", transaction=DummyTxn()))
+                                # Send push webhook (success event) & Telegram notification
+                                await send_payment_webhook(pay, status="completed", transaction=DummyTxn())
                                 
                                 processed_count += 1
                                 matched = True
@@ -328,14 +336,14 @@ async def perform_transaction_check(force: bool = False) -> int:
                         unmatched_msg = (
                             f"📥 <b>[KOS GATEWAY] NHẬN EMAIL NGÂN HÀNG MỚI</b>\n"
                             f"---------------------------------\n"
-                            f"✉️ <b>Tiêu đề:</b> {em.get('subject')}\n"
-                            f"👤 <b>Người gửi:</b> {em.get('from')}\n"
+                            f"✉️ <b>Tiêu đề:</b> {em.get('subject', 'Không tiêu đề')}\n"
+                            f"👤 <b>Người gửi:</b> {em.get('from', 'N/A')}\n"
                             f"💰 <b>Số tiền trích xuất:</b> +{credit_amount:,.0f} VNĐ\n"
                             f"📝 <b>Nội dung trích xuất:</b> <code>{parsed.get('content') or 'Không có'}</code>\n"
                             f"💳 <b>Mã giao dịch:</b> <code>{trans_no}</code>\n"
-                            f"ℹ️ <i>Trạng thái: Đã bóc tách email thành công (Hiện chưa có đơn hàng chờ khớp).</i>"
+                            f"ℹ️ <i>Trạng thái: Đã bóc tách email thành công (Chưa có đơn hàng chờ khớp).</i>"
                         )
-                        asyncio.create_task(send_telegram_notification(unmatched_msg))
+                        await send_telegram_notification(unmatched_msg)
         except Exception as e:
             logger.error(f"Error checking email bank transactions: {e}", exc_info=True)
 
