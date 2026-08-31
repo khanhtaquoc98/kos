@@ -52,10 +52,11 @@ async def create_payment_order(req: CreatePaymentRequest, request: Request):
     else:
         payment_id = existing["id"]
 
+    return_redirect = req.return_url or req.callback_url or ""
     base_url = str(request.base_url).rstrip('/')
     checkout_url = f"{base_url}/checkout?orderId={quote(order_ref)}&amount={req.amount}&content={quote(content)}"
-    if req.callback_url:
-        checkout_url += f"&callback={quote(req.callback_url)}"
+    if return_redirect:
+        checkout_url += f"&callback={quote(return_redirect)}"
 
     account_number = gateway_db.get_config("mb_account_number", "0123456789")
     account_name = gateway_db.get_config("mb_account_name", "CỔNG THANH TOÁN NGÂN HÀNG")
@@ -127,10 +128,19 @@ async def register_qr_payment(req: QRRequest, request: Request):
 @router.get("/api/check-payment/{reference_id}")
 async def check_payment_status(reference_id: str, force: bool = False):
     """
-    Directly triggers a scan and checks if a specific reference_id has been paid.
-    Suitable for frontend polling or when user clicks 'I have transferred' button.
+    Directly checks if a specific reference_id has been paid.
+    Returns status immediately if already completed/cancelled.
+    Triggers bank scan if forced.
     """
-    await perform_transaction_check(force=force)
+    status_str = gateway_db.get_pending_payment_status(reference_id)
+    if status_str and status_str != "pending":
+        return {
+            "reference_id": reference_id,
+            "status": status_str
+        }
+
+    if force:
+        await perform_transaction_check(force=True)
     
     status_str = gateway_db.get_pending_payment_status(reference_id)
     if not status_str:

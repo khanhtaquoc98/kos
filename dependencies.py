@@ -60,6 +60,8 @@ class CreatePaymentRequest(BaseModel):
     amount: float
     content: str
     callback_url: Optional[str] = ""
+    return_url: Optional[str] = ""
+    webhook_url: Optional[str] = ""
 
 class CancelPaymentRequest(BaseModel):
     order_id: Optional[str] = None
