@@ -86,8 +86,11 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
     secret = gateway_db.get_config("callback_secret", "super-secret-callback-token")
     
     target_url = payment.get("webhook_url") or payment.get("callback_url") or gateway_db.get_config("default_callback_url")
-    if target_url and "/payment/result" in target_url:
-        target_url = target_url.split("/payment/result")[0] + "/api/payment/webhook"
+    if target_url and "/api/" not in target_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(target_url)
+        if parsed.scheme and parsed.netloc:
+            target_url = f"{parsed.scheme}://{parsed.netloc}/api/payment/webhook"
     ref_id = payment.get("reference_id") or payment.get("id")
     p_id = payment.get("id")
     amount = float(payment.get("amount") or 0.0)

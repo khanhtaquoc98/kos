@@ -104,8 +104,11 @@ async def checkout_get(
     if existing_status in ['completed', 'success']:
         target_cb = callback or gateway_db.get_config("default_callback_url", "")
         if target_cb:
-            connector = '&' if '?' in target_cb else '?'
-            redirect_target = f"{target_cb}{connector}orderCode={final_order_id}&status=completed"
+            if "status=" in target_cb:
+                redirect_target = target_cb
+            else:
+                connector = '&' if '?' in target_cb else '?'
+                redirect_target = f"{target_cb}{connector}orderCode={final_order_id}&status=success"
             logger.info(f"Order {final_order_id} already completed, redirecting directly to {redirect_target}")
             return RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
 
