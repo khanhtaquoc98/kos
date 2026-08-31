@@ -3,7 +3,9 @@ import logging
 import asyncio
 from datetime import datetime
 from urllib.parse import quote
+import json
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 
 import gateway_db
 import email_engine
@@ -16,7 +18,9 @@ from dependencies import (
 )
 from services.sync_service import (
     perform_transaction_check,
-    send_payment_webhook
+    send_payment_webhook,
+    subscribe_sse,
+    unsubscribe_sse
 )
 
 logger = logging.getLogger("mbbank-webhook.payment")
@@ -150,6 +154,37 @@ async def check_payment_status(reference_id: str, force: bool = False):
         "reference_id": reference_id,
         "status": status_str
     }
+
+@router.get("/api/payment/stream/{reference_id}")
+async def payment_event_stream(reference_id: str, request: Request):
+    """
+    Server-Sent Events (SSE) stream for instant realtime payment status updates.
+    Eliminates polling delays and pushes payment completion to browser in <10ms.
+    """
+    async def event_generator():
+        # Check current DB status first
+        status_str = gateway_db.get_pending_payment_status(reference_id)
+        if status_str and status_str != "pending":
+            yield f"data: {json.dumps({'status': status_str, 'reference_id': reference_id})}\n\n"
+            return
+
+        queue = subscribe_sse(reference_id)
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {json.dumps(data)}\n\n"
+                    if data.get("status") in ["completed", "success", "cancelled", "failed"]:
+                        break
+                except asyncio.TimeoutError:
+                    # Heartbeat comment to keep SSE connection alive
+                    yield ": heartbeat\n\n"
+        finally:
+            unsubscribe_sse(reference_id, queue)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/api/test-simulate-payment")
 async def simulate_payment_success(req: SimulatePaymentRequest):

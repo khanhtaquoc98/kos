@@ -15,7 +15,35 @@ except ImportError:
 import gateway_db
 import email_engine
 
+from typing import Optional, Any, Dict, List
+
 logger = logging.getLogger("mbbank-webhook.sync")
+
+# In-memory SSE subscribers: ref_id -> list of asyncio.Queue
+_sse_subscribers: Dict[str, List[asyncio.Queue]] = {}
+
+def subscribe_sse(ref_id: str) -> asyncio.Queue:
+    queue = asyncio.Queue()
+    if ref_id not in _sse_subscribers:
+        _sse_subscribers[ref_id] = []
+    _sse_subscribers[ref_id].append(queue)
+    return queue
+
+def unsubscribe_sse(ref_id: str, queue: asyncio.Queue):
+    if ref_id in _sse_subscribers:
+        if queue in _sse_subscribers[ref_id]:
+            _sse_subscribers[ref_id].remove(queue)
+        if not _sse_subscribers[ref_id]:
+            del _sse_subscribers[ref_id]
+
+def broadcast_payment_status(ref_id: str, status: str, payload: Optional[dict] = None):
+    p = payload or {"status": status, "reference_id": ref_id}
+    if ref_id in _sse_subscribers:
+        for q in list(_sse_subscribers[ref_id]):
+            try:
+                q.put_nowait(p)
+            except Exception:
+                pass
 
 async def send_telegram_notification(text: str):
     """Sends HTML formatted log notification to configured Telegram Chat ID via Bot API."""
@@ -63,6 +91,9 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
     ref_id = payment.get("reference_id") or payment.get("id")
     p_id = payment.get("id")
     amount = float(payment.get("amount") or 0.0)
+    
+    # Broadcast SSE event immediately to any open UI checkout page listeners
+    broadcast_payment_status(ref_id, status, {"status": status, "reference_id": ref_id, "amount": amount})
     
     trans_no = getattr(transaction, "refNo", "") if transaction else ""
     desc = getattr(transaction, "description", "") or getattr(transaction, "addDescription", "") if transaction else (reason or payment.get("content", ""))

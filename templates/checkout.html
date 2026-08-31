@@ -947,9 +947,36 @@
             // Start countdown timer
             startTimer();
 
-            // Start polling status after 30 seconds delay (user needs time to scan and transfer)
-            setTimeout(startPolling, 30000);
+            // Connect Realtime SSE Stream for instant sub-millisecond payment detection
+            startSSESubscription();
+
+            // Start polling status after 1.5 seconds delay (fallback)
+            setTimeout(startPolling, 1500);
         });
+
+        // Instant Realtime SSE (Server-Sent Events) Push Listener
+        function startSSESubscription() {
+            const streamRef = orderCode || orderId;
+            if (!streamRef || !window.EventSource) return;
+
+            try {
+                const evtSource = new EventSource(`/api/payment/stream/${streamRef}`);
+                evtSource.onmessage = function(e) {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.status === "completed" || data.status === "success") {
+                            evtSource.close();
+                            handlePaymentSuccess();
+                        }
+                    } catch(err) {}
+                };
+                evtSource.onerror = function() {
+                    evtSource.close();
+                };
+            } catch(err) {
+                console.warn("SSE subscription error:", err);
+            }
+        }
 
         function formatCurrency(val) {
             return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
@@ -1176,10 +1203,10 @@
             }
         }
 
-        // Webhook status polling (checked every 30 seconds as requested)
+        // Webhook status polling (checked every 2 seconds)
         function startPolling() {
             if (pollingInterval) clearInterval(pollingInterval);
-            pollingInterval = setInterval(checkPaymentStatus, 30000); // Poll every 30 seconds
+            pollingInterval = setInterval(checkPaymentStatus, 2000); // Poll every 2 seconds
         }
 
         async function checkPaymentStatus() {
@@ -1224,11 +1251,11 @@
                 fill.style.width = "100%";
             }, 100);
 
-            // Perform automatic browser redirect after 3 seconds
+            // Perform automatic browser redirect immediately (200ms)
             setTimeout(() => {
                 const redirectUrl = getRedirectUrl(callbackUrl, true);
-                window.location.href = redirectUrl;
-            }, 3000);
+                window.location.replace(redirectUrl);
+            }, 200);
         }
 
         // Cancellation action

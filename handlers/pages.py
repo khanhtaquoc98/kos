@@ -101,7 +101,15 @@ async def checkout_get(
     
     # Check if this pending payment already exists in database
     existing_status = gateway_db.get_pending_payment_status(final_order_id)
-    if not existing_status or existing_status != 'pending':
+    if existing_status in ['completed', 'success']:
+        target_cb = callback or gateway_db.get_config("default_callback_url", "")
+        if target_cb:
+            connector = '&' if '?' in target_cb else '?'
+            redirect_target = f"{target_cb}{connector}orderCode={final_order_id}&status=completed"
+            logger.info(f"Order {final_order_id} already completed, redirecting directly to {redirect_target}")
+            return RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
+
+    if not existing_status:
         payment_id = str(uuid.uuid4())
         try:
             gateway_db.add_pending_payment(
