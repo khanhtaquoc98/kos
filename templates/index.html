@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOS Payment Gateway | Cổng Thanh Toán Tự Động Qua VietQR & Gmail Webhook</title>
+    <meta name="description"
+        content="KOS Payment Gateway - Giải pháp xử lý thanh toán chuyển khoản ngân hàng tự động 100% thời gian thực qua Google Pub/Sub & Gmail Webhook. Không cần cấp mật khẩu e-banking, không treo máy.">
+    <meta name="keywords"
+        content="cổng thanh toán tự động, mbbank webhook, vietqr tự động, gmail webhook bank, thanh toán chuyển khoản ngân hàng">
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f8fafc;
+            --border-subtle: #e2e8f0;
+            --border-focus: #0284c7;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --text-dim: #64748b;
+            --cyan: #0284c7;
+            --cyan-glow: rgba(2, 132, 199, 0.2);
+            --violet: #6366f1;
+            --violet-glow: rgba(99, 102, 241, 0.2);
+            --emerald: #10b981;
+            --emerald-glow: rgba(16, 185, 129, 0.2);
+            --rose: #e11d48;
+            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            overflow-x: hidden;
+            selection-background-color: #bae6fd;
+            selection-color: #0369a1;
+        }
+
+        /* Ambient Glow Lights in Background */
+        .ambient-glow {
+            position: fixed;
+            width: 650px;
+            height: 650px;
+            border-radius: 50%;
+            filter: blur(140px);
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.12;
+            transition: all 0.5s ease;
+        }
+
+        .glow-1 {
+            top: -150px;
+            left: 10%;
+            background: #38bdf8;
+        }
+
+        .glow-2 {
+            top: 30%;
+            right: -150px;
+            background: #818cf8;
+        }
+
+        .glow-3 {
+            bottom: 10%;
+            left: -100px;
+            background: #60a5fa;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.03);
+            transition: all 0.3s;
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 80px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .brand-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.15);
+            object-fit: cover;
+            border: 1px solid #e2e8f0;
+        }
+
+        .brand-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #0f172a;
+        }
+
+        .brand-title span {
+            background: linear-gradient(135deg, #0284c7 0%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: rgba(2, 132, 199, 0.08);
+            color: var(--cyan);
+            border: 1px solid rgba(2, 132, 199, 0.25);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-main);
+            transform: translateY(-1px);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 20px rgba(2, 132, 199, 0.25);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(2, 132, 199, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+            transform: translateY(-2px);
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding-top: 170px;
+            padding-bottom: 100px;
+            position: relative;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 50px;
+            align-items: center;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(2, 132, 199, 0.08);
+            border: 1px solid rgba(2, 132, 199, 0.2);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #0284c7;
+            margin-bottom: 24px;
+        }
+
+        .hero-badge .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #0284c7;
+            box-shadow: 0 0 10px rgba(2, 132, 199, 0.5);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.6);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(2, 132, 199, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(2, 132, 199, 0);
+            }
+        }
+
+        .hero h1 {
+            font-size: 3.4rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1.5px;
+            margin-bottom: 22px;
+            color: #0f172a;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+            margin-bottom: 36px;
+            max-width: 580px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-bottom: 48px;
+        }
+
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            border-top: 1px solid var(--border-subtle);
+            padding-top: 32px;
+        }
+
+        .stat-item h4 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+        }
+
+        .stat-item h4 span {
+            color: var(--cyan);
+        }
+
+        .stat-item p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 0;
+        }
+
+        /* Interactive Showcase Mockup */
+        .showcase-card {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .showcase-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #0284c7, #6366f1, #38bdf8);
+        }
+
+        .showcase-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .showcase-header .badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--emerald);
+            background: rgba(16, 185, 129, 0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .showcase-header .badge .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--emerald);
+            border-radius: 50%;
+        }
+
+        .mockup-qr-box {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 18px;
+            text-align: center;
+            margin: 0 auto 20px;
+            max-width: 260px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        .mockup-qr-box img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .mockup-qr-scanline {
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #ef4444, transparent);
+            box-shadow: 0 0 12px #ef4444;
+            animation: scanline 2.5s ease-in-out infinite;
+        }
+
+        @keyframes scanline {
+            0% {
+                top: 15%;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 85%;
+                opacity: 0;
+            }
+        }
+
+        .mockup-info {
+            background: #f8fafc;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-row .label {
+            color: var(--text-dim);
+        }
+
+        .info-row .value {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        .info-row .value.highlight {
+            color: #0284c7;
+            font-family: var(--font-mono);
+        }
+
+        .mockup-action-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Section Styling */
+        section {
+            padding: 90px 0;
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 60px;
+        }
+
+        .section-header .tag {
+            display: inline-block;
+            color: var(--cyan);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+            line-height: 1.25;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+        }
+
+        /* Feature Cards Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 28px;
+        }
+
+        .feature-card {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 32px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+        }
+
+        .feature-card:hover {
+            background: #f8fafc;
+            border-color: rgba(2, 132, 199, 0.4);
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px -10px rgba(2, 132, 199, 0.12);
+        }
+
+        .feature-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            margin-bottom: 24px;
+            background: #f1f5f9;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .feature-card:nth-child(1) .feature-icon {
+            background: rgba(2, 132, 199, 0.1);
+            color: var(--cyan);
+        }
+
+        .feature-card:nth-child(2) .feature-icon {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--violet);
+        }
+
+        .feature-card:nth-child(3) .feature-icon {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--emerald);
+        }
+
+        .feature-card:nth-child(4) .feature-icon {
+            background: rgba(225, 29, 72, 0.1);
+            color: var(--rose);
+        }
+
+        .feature-card:nth-child(5) .feature-icon {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .feature-card:nth-child(6) .feature-icon {
+            background: rgba(234, 179, 8, 0.1);
+            color: #d97706;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.65;
+        }
+
+        /* Architecture Steps */
+        .pipeline-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            position: relative;
+        }
+
+        .pipeline-step {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 18px;
+            padding: 28px 22px;
+            position: relative;
+            box-shadow: 0 4px 15px -2px rgba(15, 23, 42, 0.03);
+        }
+
+        .step-num {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--cyan), var(--violet));
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px var(--cyan-glow);
+        }
+
+        .pipeline-step h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .pipeline-step p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Comparison Table */
+        .comparison-table-wrap {
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.04);
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .comparison-table th {
+            background: #f8fafc;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .comparison-table th.highlight-th {
+            color: var(--cyan);
+            background: rgba(2, 132, 199, 0.08);
+            border-left: 1px solid rgba(2, 132, 199, 0.2);
+            border-right: 1px solid rgba(2, 132, 199, 0.2);
+        }
+
+        .comparison-table td.highlight-td {
+            background: rgba(2, 132, 199, 0.03);
+            border-left: 1px solid rgba(2, 132, 199, 0.2);
+            border-right: 1px solid rgba(2, 132, 199, 0.2);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .comparison-table td {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        /* Code Tabs Section */
+        .code-showcase {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.25);
+        }
+
+        .code-nav {
+            display: flex;
+            align-items: center;
+            background: #020617;
+            padding: 0 20px;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 16px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+        }
+
+        .tab-btn.active {
+            color: #38bdf8;
+            border-bottom-color: #38bdf8;
+        }
+
+        .code-content {
+            padding: 24px;
+            position: relative;
+        }
+
+        .code-content pre {
+            margin: 0;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: #f1f5f9;
+            overflow-x: auto;
+            line-height: 1.7;
+        }
+
+        .copy-code-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e2e8f0;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-code-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        /* CTA Banner */
+        .cta-banner {
+            background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #faf5ff 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 28px;
+            padding: 60px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.05);
+        }
+
+        .cta-banner h2 {
+            font-size: 2.6rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+            color: #0f172a;
+        }
+
+        .cta-banner p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 36px;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 60px 0 40px;
+            background: #f8fafc;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 48px;
+        }
+
+        .footer-brand p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 14px;
+            max-width: 320px;
+            line-height: 1.6;
+        }
+
+        .footer-col h5 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 18px;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col li {
+            margin-bottom: 12px;
+        }
+
+        .footer-col a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .footer-col a:hover {
+            color: var(--cyan);
+        }
+
+        .footer-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid var(--border-subtle);
+            padding-top: 32px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pipeline-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline-container {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-stats {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Ambient Lighting -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <!-- Navigation Header -->
+    <nav>
+        <div class="container nav-inner">
+            <a href="/" class="brand">
+                <img src="/static/logo.png" alt="KOS Gateway Logo" class="brand-logo"
+                    onerror="this.src='/static/favicon.png'">
+                <div class="brand-title">
+                    <span>KOS</span>
+                    <span class="brand-badge">v0.3.0</span>
+                </div>
+            </a>
+
+            <ul class="nav-links">
+                <li><a href="#features">Tính năng</a></li>
+                <li><a href="#how-it-works">Quy trình</a></li>
+                <li><a href="#comparison">So sánh</a></li>
+                <li><a href="#api">Tích hợp API</a></li>
+                <li><a href="/demo">Demo Thanh Toán</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <a href="/demo" class="btn btn-primary btn-sm">Trải Nghiệm Demo</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-grid">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <div class="pulse"></div>
+                        <span>Cổng Thanh Toán Tự Động</span>
+                    </div>
+                    <h1>
+                        Tự Động Hóa Biến Động Số Dư <span class="gradient-text">Thời Gian Thực</span>
+                    </h1>
+                    <p>
+                        Giải pháp bắt biến động số dư chuyển khoản tự động 100% qua <b>Google Pub/Sub & Gmail
+                            Webhook</b>. Khách quét VietQR là xác nhận đơn hàng trong <b>500ms</b>. 0% phí trung gian,
+                        không cần nhập mật khẩu e-banking.
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="/demo" class="btn btn-primary">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            Trải Nghiệm Live Demo
+                        </a>
+                        <a href="#api" class="btn btn-secondary">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="16 18 22 12 16 6"></polyline>
+                                <polyline points="8 6 2 12 8 18"></polyline>
+                            </svg>
+                            Tích Hợp API Ngay
+                        </a>
+                    </div>
+
+                    <div class="hero-stats">
+                        <div class="stat-item">
+                            <h4>&lt; <span>500ms</span></h4>
+                            <p>Tốc độ nhận biến động số dư</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4><span>100%</span> Tự Động</h4>
+                            <p>Khớp lệnh mã đơn chuẩn xác</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4><span>0₫</span> Chi Phí</h4>
+                            <p>Không qua trung gian thu phí</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Showcase Preview Card -->
+                <div class="showcase-card">
+                    <div class="showcase-header">
+                        <div>
+                            <span style="font-size: 0.8rem; color: var(--text-dim);">DEMO CHECKOUT PREVIEW</span>
+                            <h4 style="font-size: 1.1rem; font-weight: 700;">Đơn Hàng #KOS-8869</h4>
+                        </div>
+                        <div class="badge" id="preview-status-badge">
+                            <span class="dot"></span>
+                            <span id="preview-status-text">Đang chờ quét QR...</span>
+                        </div>
+                    </div>
+
+                    <div class="mockup-qr-box">
+                        <div class="mockup-qr-scanline"></div>
+                        <img src="https://api.vietqr.io/image/970422-0987654321-compact2.jpg?amount=50000&addInfo=KOS8869&accountName=KOS%20PAYMENT%20GATEWAY"
+                            alt="VietQR Sample" id="preview-qr-img">
+                    </div>
+
+                    <div class="mockup-info">
+                        <div class="info-row">
+                            <span class="label">Số tiền:</span>
+                            <span class="value" style="color: #10b981; font-size: 1.05rem;">50,000 VNĐ</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Nội dung chuyển:</span>
+                            <span class="value highlight">KOS8869</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">Cơ chế phát hiện:</span>
+                            <span class="value" style="color: #38bdf8;">Google Pub/Sub Push (Instant)</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" style="width: 100%;" onclick="simulatePaymentInstant(this)">
+                        ⚡ Thử Nghiệm Bắn Biến Động Số Dư (+50K)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Features Section -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header">KOS
+                <span class="tag">Công Nghệ Đột Phá</span>KOS
+                <h2>Tính Năng Vượt Trội Của KOS Gateway</h2>
+                <p>Khác biệt hoàn toàn với các giải pháp treo app điện thoại dễ sập nguồn, KOS Gateway mang đến độ ổn
+                    định 99.99% chuẩn Enterprise.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Tốc Độ Tức Thời (Pub/Sub Push)</h3>
+                    <p>Thay vì phải quét hòm thư định kỳ gây trễ và tốn tài nguyên, Google Pub/Sub sẽ chủ động bắn tín
+                        hiệu Push Webhook ngay khi ngân hàng gửi email biến động số dư.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Bảo Mật Chuẩn Google OAuth 2.0</h3>
+                    <p>Không bao giờ hỏi tài khoản/mật khẩu Internet Banking hay mã OTP. Toàn bộ cơ chế kết nối qua
+                        Google Cloud OAuth 2.0 an toàn tuyệt đối 100%.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>VietQR Động NAPAS 24/7</h3>
+                    <p>Mã QR tự động sinh kèm số tiền và nội dung đơn hàng. Khách mở bất kỳ app ngân hàng nào (MB, VCB,
+                        TCB, ACB, Momo...) quét là điền đủ thông tin ngay lập tức.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>SSE Realtime Checkout</h3>
+                    <p>Ứng dụng công nghệ Server-Sent Events (SSE). Ngay khi nhận được tiền, màn hình thanh toán của
+                        khách tự động chuyển sang trang thành công mà không cần F5 tải lại.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Báo Cáo Telegram Bot</h3>
+                    <p>Mỗi giao dịch thành công hoặc lỗi đều được gửi thông báo chi tiết qua Telegram Bot: số tiền, mã
+                        giao dịch FT, ngân hàng, thời gian khớp lệnh.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">☁️</div>
+                    <h3>Cloud Serverless (0₫ Hạ Tầng)</h3>
+                    <p>Deploy mượt mà trên Vercel / Cloudflare / VPS. Không cần cắm sạc điện thoại Android 24/24, không
+                        lo pin phồng hay ứng dụng ngân hàng tự văng.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Pipeline -->
+    <section id="how-it-works" style="background: #f8fafc;">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Quy Trình Hoạt Động</span>
+                <h2>Khớp Lệnh 4 Bước Hoàn Toàn Tự Động</h2>
+                <p>Từ lúc khách tạo đơn đến khi hoàn tất nhận tiền chỉ diễn ra trong vài giây.</p>
+            </div>
+
+            <div class="pipeline-container">
+                <div class="pipeline-step">
+                    <div class="step-num">1</div>
+                    <h4>Tạo Đơn Hàng & VietQR</h4>
+                    <p>Website thương mại gọi API tạo đơn thanh toán. Hệ thống sinh mã VietQR độc nhất kèm nội dung
+                        chuyển khoản.</p>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-num">2</div>
+                    <h4>Khách Quét Mã Thanh Toán</h4>
+                    <p>Khách hàng quét mã QR trên ứng dụng ngân hàng của họ. Tiền được chuyển trực tiếp 100% về tài
+                        khoản của bạn.</p>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-num">3</div>
+                    <h4>Google Pub/Sub Báo Hiệu</h4>
+                    <p>Ngân hàng gửi email biến động số dư. Google Cloud phát hiện ngay và đẩy Push Webhook về gateway
+                        trong 500ms.</p>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-num">4</div>
+                    <h4>Khớp Lệnh & Bắn Webhook</h4>
+                    <p>Hệ thống tự động phân tích cú pháp, cập nhật trạng thái đơn hàng, gửi webhook về website của bạn
+                        và báo qua Telegram.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Table -->
+    <section id="comparison">
+        <div class="container">
+            <div class="sectKOS>
+                <span class=" taKOSChọn Chúng Tôi</span>
+                <h2>So Sánh KOS Gateway Với Các Giải Pháp Khác</h2>
+                <p>Xem tại sao KOS Gateway là giải pháp thông minh và bền vững nhất cho doanh nghiệp & shop online.</p>
+            </div>
+
+            <div class="comparison-table-wrap">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>KOS
+                            <th>Tiêu chí so sánh</th>
+                            <th class="highlight-th">🚀 KOS Gateway (Pub/Sub)</th>
+                            <th>📱 Tool Treo App Android</th>
+                            <th>💳 Cổng Trung Gian (VNPAY/Momo)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><b>Chi phí giao dịch</b></td>
+                            <td class="highlight-td"><b>0% (Miễn phí hoàn toàn)</b></td>
+                            <td>0%</td>
+                            <td>1.5% - 2.5% + VAT mỗi đơn</td>
+                        </tr>
+                        <tr>
+                            <td><b>Bảo mật tài khoản ngân hàng</b></td>
+                            <td class="highlight-td"><b>Tuyệt đối an toàn (Qua Gmail OAuth)</b></td>
+                            <td>Nguy cơ lộ User/Pass/OTP E-banking</td>
+                            <td>An toàn</td>
+                        </tr>
+                        <tr>
+                            <td><b>Rủi ro khóa app ngân hàng</b></td>
+                            <td class="highlight-td"><b>0% (Không can thiệp app ngân hàng)</b></td>
+                            <td>Rất cao (Ngân hàng quét phát hiện bot)</td>
+                            <td>Không có</td>
+                        </tr>
+                        <tr>
+                            <td><b>Độ ổn định hạ tầng</b></td>
+                            <td class="highlight-td"><b>99.99% Serverless Vercel Cloud</b></td>
+                            <td>Thấp (Sập khi mất wifi, cúp điện, chai pin)</td>
+                            <td>Cao</td>
+                        </tr>
+                        <tr>
+                            <td><b>Tốc độ phát hiện giao dịch</b></td>
+                            <td class="highlight-td"><b>500ms (Push Realtime)</b></td>
+                            <td>5s - 60s (Tùy chu kỳ quét)</td>
+                            <td>Tức thì</td>
+                        </tr>
+                        <tr>
+                            <td><b>Thời gian dòng tiền về túi</b></td>
+                            <td class="highlight-td"><b>Về ngay lập tức trong 1 giây</b></td>
+                            <td>Về ngay lập tức</td>
+                            <td>Bị giam vốn T+1 hoặc T+3 ngày</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Code Integration Section -->
+    <section id="api" style="background: #f8fafc;">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Dành Cho Nhà Phát Triển</span>
+                <h2>Tích Hợp Dễ Dàng Chỉ Với Vài Dòng Code</h2>
+                <p>Hỗ trợ đầy đủ cURL, Node.js, Python, PHP, Laravel, WordPress/WooCommerce.</p>
+            </div>
+
+            <div class="code-showcase">
+                <div class="code-nav">
+                    <button class="tab-btn active" onclick="switchTab('curl', this)">cURL</button>
+                    <button class="tab-btn" onclick="switchTab('nodejs', this)">Node.js</button>
+                    <button class="tab-btn" onclick="switchTab('python', this)">Python</button>
+                    <button class="tab-btn" onclick="switchTab('php', this)">PHP</button>
+                </div>
+                <div class="code-content">
+                    <button class="copy-code-btn" onclick="copyCodeSnippet()">Sao Chép</button>
+                    <pre id="code-snippet-pre"><code>curl -X POST "https://your-domain.com/api/payment/create" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "ORDER_12345",
+    "amount": 100000,
+    "content": "DH12345",
+    "callback_url": "https://myshop.com/api/payment-webhook"
+  }'</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section>
+        <div class="container">
+            <div class="cta-banner">
+                <h2>Sẵn Sàng Tự Động Hóa Thanh Toán?</h2>
+                <p>Bắt đầu ngay hôm nay để nhận dòng tiền tức thời, giảm tỷ lệ rớt đơn và quản lý doanh thu minh bạch.
+                </p>
+                <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                    <a href="/demo" class="btn btn-primary">Trải Nghiệm Thanh Toán Demo</a>
+                    <a href="#features" class="btn btn-secondary">Khám Phá Tính Năng</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="brand">
+                        <img src="/static/logo.png" alt="KOS Gateway Logo" class="brand-logo"
+                            onerror="this.src='/static/favicon.png'">
+                        <div class="brand-title">
+                            <span>KOS</span>
+                        </div>
+                    </a>
+                    <p>Hệ thống cổng thanh toán tự động chuyển khoản ngân hàng thông minh thời gian thực qua VietQR &
+                        Google Pub/Sub Webhook.</p>
+                </div>
+
+                <div class="footer-col">
+                    <h5>Sản Phẩm</h5>
+                    <ul>
+                        <li><a href="#features">Tính năng nổi bật</a></li>
+                        <li><a href="#how-it-works">Cách thức hoạt động</a></li>
+                        <li><a href="#comparison">Bảng so sánh</a></li>
+                        <li><a href="/demo">Demo Thanh Toán</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h5>Tài Liệu & API</h5>
+                    <ul>
+                        <li><a href="#api">Tích hợp REST API</a></li>
+                        <li><a href="#features">Công nghệ Webhook</a></li>
+                        <li><a href="#features">Cảnh báo Telegram Bot</a></li>
+                        <li><a href="#how-it-works">Google Cloud Pub/Sub</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-col">
+                    <h5>Pháp Lý & Bảo Mật</h5>
+                    <ul>
+                        <li><a href="/privacy">Chính Sách Bảo Mật (Privacy)</a></li>
+                        <li><a href="/terms">Điều Khoản Dịch Vụ (Terms)</a></li>
+                        <li><a href="/demo">Môi Trường Thử Nghiệm</a></li>
+                        <li><a href="/api/cron">Kiểm Tra Cron Status</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>© 2026 KOS Payment Gateway. All rights reserved.</p>
+                <p>Built with FastAPI & Google Cloud Pub/Sub</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Scripts -->
+    <script>
+        const codeSnippets = {
+            curl: `curl -X POST "https://your-domain.com/api/payment/create" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "order_id": "ORDER_12345",
+    "amount": 100000,
+    "content": "DH12345",
+    "callback_url": "https://myshop.com/api/payment-webhook"
+  }'`,
+            nodejs: `const axios = require('axios');
+
+async function createPayment() {
+  const response = await axios.post('https://your-domain.com/api/payment/create', {
+    order_id: 'ORDER_12345',
+    amount: 100000,
+    content: 'DH12345',
+    callback_url: 'https://myshop.com/api/payment-webhook'
+  });
+  console.log('Checkout URL:', response.data.checkout_url);
+}
+createPayment();`,
+            python: `import requests
+
+payload = {
+    "order_id": "ORDER_12345",
+    "amount": 100000,
+    "content": "DH12345",
+    "callback_url": "https://myshop.com/api/payment-webhook"
+}
+
+res = requests.post("https://your-domain.com/api/payment/create", json=payload)
+data = res.json()
+print("Checkout URL:", data.get("checkout_url"))`,
+            php: `<?php
+$data = [
+    'order_id' => 'ORDER_12345',
+    'amount' => 100000,
+    'content' => 'DH12345',
+    'callback_url' => 'https://myshop.com/api/payment-webhook'
+];
+
+$ch = curl_init('https://your-domain.com/api/payment/create');
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type:application/json']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$result = curl_exec($ch);
+curl_close($ch);
+print_r(json_decode($result, true));
+?>`
+        };
+
+        function switchTab(lang, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('code-snippet-pre').innerHTML = `<code>${codeSnippets[lang]}</code>`;
+        }
+
+        function copyCodeSnippet() {
+            const codeText = document.getElementById('code-snippet-pre').innerText;
+            navigator.clipboard.writeText(codeText).then(() => {
+                const btn = document.querySelector('.copy-code-btn');
+                btn.innerText = 'Đã Sao Chép! ✓';
+                setTimeout(() => { btn.innerText = 'Sao Chép'; }, 2000);
+            });
+        }
+
+        async function simulatePaymentInstant(btn) {
+            btn.disabled = true;
+            btn.innerText = '⏳ Đang giả lập biến động số dư qua Pub/Sub...';
+
+            try {
+                const res = await fetch('/api/sandbox/simulate-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: 50000,
+                        content: 'KOS8869',
+                        bank: 'mbbank'
+                    })
+                });
+
+                const data = await res.json();
+
+                const badge = document.getElementById('preview-status-badge');
+                const badgeText = document.getElementById('preview-status-text');
+                badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                badge.style.borderColor = '#10b981';
+                badge.style.color = '#10b981';
+                badgeText.innerText = 'Thanh toán thành công! (+50,000₫)';
+
+                btn.innerText = '🎉 Đã Khớp Lệnh Thành Công (500ms)!';
+                btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerText = '⚡ Thử Nghiệm Bắn Biến Động Số Dư (+50K)';
+                    btn.style.background = '';
+                    badgeText.innerText = 'Đang chờ quét QR...';
+                }, 4000);
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerText = 'Thử lại mô phỏng';
+            }
+        }
+    </script>
+</body>
+
+</html>

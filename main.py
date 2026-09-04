@@ -65,6 +65,21 @@ def startup_db():
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
 
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_route():
+    fav_path = os.path.join(static_dir, "favicon.ico")
+    if os.path.exists(fav_path):
+        return FileResponse(fav_path)
+    return HTMLResponse("", status_code=204)
+
 # Include Modular APIRouters
 app.include_router(pages.router)
 app.include_router(payment.router)

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo Thanh Toán VietQR - KOS Gateway</title>
-    <meta name="description" content="Trang mô phỏng quét mã QR thanh toán và đối soát giao dịch tự động.">
+    <title>Demo Thanh Toán VietQR - KOS</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -414,8 +415,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="logo" id="demo-title">KOS VietQR Simulator</h1>
-            <p class="subtitle">Môi trường kiểm thử thanh toán quét mã VietQR và đối soát thời gian thực</p>
+            <a href="/" style="display: inline-block; text-decoration: none; margin-bottom: 12px;">
+                <img src="/static/logo.png" alt="KOS"
+                    style="width: 58px; height: 58px; border-radius: 14px; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);"
+                    onerror="this.src='/static/favicon.png'">
+            </a>
+            <div>
+                <h1 class="logo" id="demo-title">KOS VietQR Simulator</h1>
+                <p class="subtitle">Môi trường kiểm thử thanh toán quét mã VietQR và đối soát thời gian thực</p>
+            </div>
         </div>
 
         <div class="glass-card" id="demo-card" style="position: relative;">
@@ -526,7 +534,7 @@
                 Thanh Toán Đơn Hàng Thành Công!
             </h2>
             <p class="subtitle" style="margin-bottom: 24px;">
-                Cổng thanh toán KOS Gateway đã nhận được tiền &amp; phát Push Webhook Server-to-Server thành công!
+                Cổng thanh toán KOS đã nhận được tiền &amp; phát Push Webhook Server-to-Server thành công!
             </p>
 
             <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 16px; padding: 20px; text-align: left; margin-bottom: 24px; font-size: 0.95rem;">

@@ -14,8 +14,19 @@ logger = logging.getLogger("mbbank-webhook.pages")
 router = APIRouter(tags=["Pages"])
 
 @router.get("/", response_class=HTMLResponse)
-async def index_redirect():
-    return RedirectResponse(url="/admin")
+async def index_page(request: Request):
+    configs = gateway_db.get_all_configs()
+    return render_template(request, "index.html", {
+        "configs": configs
+    })
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    return render_template(request, "privacy.html")
+
+@router.get("/terms", response_class=HTMLResponse)
+async def terms_page(request: Request):
+    return render_template(request, "terms.html")
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_get(request: Request):

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều Khoản Dịch Vụ (Terms of Service) - KOS Payment Gateway</title>
+    <meta name="description" content="Điều khoản dịch vụ và quy định sử dụng cổng thanh toán tự động KOS Payment Gateway.">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-card: #ffffff;
+            --border-subtle: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #334155;
+            --text-dim: #64748b;
+            --cyan: #0284c7;
+            --font-sans: 'Plus Jakarta Sans', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.7;
+            padding-bottom: 60px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0 30px;
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: 30px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .brand img {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .btn-back {
+            color: var(--cyan);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .content-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 48px;
+            box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
+        }
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+        }
+        .effective-date {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 16px;
+        }
+        h2 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--cyan);
+            margin: 32px 0 14px;
+        }
+        p, li {
+            color: var(--text-muted);
+            font-size: 0.98rem;
+            margin-bottom: 14px;
+        }
+        ul {
+            padding-left: 24px;
+            margin-bottom: 16px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        a {
+            color: var(--cyan);
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="/" class="brand">
+                <img src="/static/logo.png" alt="KOS Gateway" onerror="this.src='/static/favicon.png'">
+                <span>KOS Payment Gateway</span>
+            </a>
+            <a href="/" class="btn-back">← Quay lại trang chủ</a>
+        </nav>
+
+        <div class="content-card">
+            <h1>Điều Khoản Dịch Vụ (Terms of Service)</h1>
+            <div class="effective-date">Ngày cập nhật có hiệu lực: 04/09/2026 | Phiên bản 1.1</div>
+
+            <p>Bằng việc truy cập, tích hợp hoặc sử dụng nền tảng <b>KOS Payment Gateway</b> ("Dịch vụ"), bạn đồng ý tuân thủ và chịu sự ràng buộc bởi các Điều khoản Dịch vụ này. Nếu bạn không đồng ý với bất kỳ điều khoản nào, vui lòng ngừng sử dụng dịch vụ.</p>
+
+            <h2>1. Mô Tả Dịch Vụ</h2>
+            <p>KOS Payment Gateway cung cấp giải pháp công nghệ hỗ trợ đối soát biến động số dư chuyển khoản ngân hàng tự động thời gian thực thông qua:</p>
+            <ul>
+                <li>Khởi tạo mã VietQR động NAPAS 24/7 kèm số tiền và cú pháp mã đơn hàng.</li>
+                <li>Tiếp nhận thông báo biến động số dư chuyển khoản từ tài khoản ngân hàng thông qua Google Cloud Pub/Sub & Gmail Webhook.</li>
+                <li>Tự động khớp lệnh và kích hoạt Webhook trả kết quả về website thương mại của người dùng.</li>
+            </ul>
+
+            <h2>2. Trách Nhiệm Của Người Dùng</h2>
+            <p>Khi sử dụng Dịch vụ, bạn cam kết:</p>
+            <ul>
+                <li>Sử dụng dịch vụ đúng mục đích kinh doanh hợp pháp, tuân thủ nghiêm ngặt các quy định pháp luật hiện hành về thương mại điện tử và giao dịch thanh toán ngân hàng.</li>
+                <li>Không sử dụng Dịch vụ cho các mục đích vi phạm pháp luật, gian lận, rửa tiền, cờ bạc trực tuyến hoặc các hoạt động phi pháp khác.</li>
+                <li>Tự chịu trách nhiệm bảo mật các khóa định danh (API Callback Secret, tài khoản Admin đăng nhập).</li>
+            </ul>
+
+            <h2>3. Tuyên Bố Miễn Trừ Trách Nhiệm Về Ngân Hàng</h2>
+            <p>KOS Payment Gateway là một giải pháp công nghệ phần mềm hỗ trợ tự động hóa thông báo:</p>
+            <ul>
+                <li>Chúng tôi <b>không phải là tổ chức tài chính hoặc ngân hàng trung gian</b>. Dòng tiền thanh toán từ khách hàng luôn được chuyển khoản 100% trực tiếp vào tài khoản ngân hàng thụ hưởng của bạn mà không qua tài khoản trung gian của KOS.</li>
+                <li>Chúng tôi không chịu trách nhiệm trong trường hợp hệ thống Internet Banking của ngân hàng đối tác bảo trì, gián đoạn đường truyền từ phía ngân hàng hoặc chậm trễ phát sinh ngoài tầm kiểm soát của hệ thống.</li>
+            </ul>
+
+            <h2>4. Quyền Sở Hữu Trí Tuệ</h2>
+            <p>Toàn bộ mã nguồn, thiết kế giao diện, logo, nhãn hiệu và tài liệu hướng dẫn liên quan đến KOS Payment Gateway thuộc quyền sở hữu độc quyền của KOS Gateway và được bảo vệ theo luật sở hữu trí tuệ.</p>
+
+            <h2>5. Thay Đổi Điều Khoản</h2>
+            <p>Chúng tôi có thể cập nhật các Điều khoản Dịch vụ này tùy từng thời điểm để phù hợp với sự thay đổi của công nghệ hoặc pháp luật. Các thay đổi sẽ có hiệu lực ngay khi được công bố công khai trên trang web này.</p>
+
+            <h2>6. Thông Tin Liên Hệ</h2>
+            <p>Mọi thắc mắc hoặc yêu cầu hỗ trợ về Điều khoản Dịch vụ, vui lòng liên hệ trực tiếp với chúng tôi qua trang quản trị hệ thống.</p>
+        </div>
+    </div>
+</body>
+</html>

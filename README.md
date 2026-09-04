@@ -136,7 +136,7 @@ Hệ thống tích hợp sẵn cơ chế mã hóa tự động cho các tham s�
 Xem chi tiết trong file **[INTEGRATION.md](file:///Users/bo-khanh/Desktop/Src/out/mbbank-webhook/INTEGRATION.md)**.
 
 ### A. Tạo Đơn Hàng Thanh Toán (`POST /api/v1/payment/create`)
-Website của bạn gửi request tạo đơn hàng thanh toán vào KOS Gateway:
+Website của bạn gửi request tạo đơn hàng thanh toán vào KOS:
 
 * **Payload mẫu:**
   ```json
@@ -165,7 +165,7 @@ Website của bạn gửi request tạo đơn hàng thanh toán vào KOS Gateway
 ---
 
 ### B. Push Webhook Event (`POST webhook_url` - Server to Server)
-KOS Gateway sẽ bắn HTTP POST kèm chữ ký bảo mật SHA-256 (`X-Webhook-Signature`) về `webhook_url` của bạn:
+KOS sẽ bắn HTTP POST kèm chữ ký bảo mật SHA-256 (`X-Webhook-Signature`) về `webhook_url` của bạn:
 
 * **1. Khi Thanh Toán Thành Công (`payment.success`):**
   ```json

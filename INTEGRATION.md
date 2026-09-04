@@ -8,7 +8,7 @@ Tài liệu này hướng dẫn chi tiết cách tích hợp **KOS Webhook Gatew
 > **Hỏi: Nếu khách hàng mở App Bank quét QR xong rồi TẮT TAB / TẮT TRÌNH DUYỆT thì Website bán hàng có nhận được Webhook không?**
 >
 > **Trả lời: CÓ, VẪN NHẬN 100%!**
-> Push Webhook là giao tiếp **Server-to-Server** trực tiếp giữa KOS Gateway Server và Server Website Bán Hàng của bạn. Nó hoạt động hoàn toàn độc lập ở Backend, không hề phụ thuộc vào việc trình duyệt của khách hàng đang mở hay đã tắt. Ngay khi Ngân hàng báo số dư, KOS Server sẽ gửi HTTP POST báo về Server bán hàng để tự động duyệt đơn.
+> Push Webhook là giao tiếp **Server-to-Server** trực tiếp giữa KOS Server và Server Website Bán Hàng của bạn. Nó hoạt động hoàn toàn độc lập ở Backend, không hề phụ thuộc vào việc trình duyệt của khách hàng đang mở hay đã tắt. Ngay khi Ngân hàng báo số dư, KOS Server sẽ gửi HTTP POST báo về Server bán hàng để tự động duyệt đơn.
 
 ---
 
@@ -86,7 +86,7 @@ Khi người dùng nhấn **Thanh Toán** trên website của bạn, Backend g�
 
 ### 📌 A. Nơi Khai Báo Webhook URL Trên Website Bán Hàng:
 
-Bạn có **2 cách** để cài đặt Webhook URL nhận thông báo từ KOS Gateway:
+Bạn có **2 cách** để cài đặt Webhook URL nhận thông báo từ KOS:
 
 1. **Cách 1 (Khuyên dùng)**: Truyền trực tiếp trong Request Body khi gọi `POST /api/v1/payment/create`:
    ```json
@@ -98,13 +98,13 @@ Bạn có **2 cách** để cài đặt Webhook URL nhận thông báo từ KOS 
      "webhook_url": "https://myshop.com/api/webhooks/kos"
    }
    ```
-2. **Cách 2**: Nhập URL vào ô **Callback URL Mặc Định** trong trang Admin Dashboard KOS Gateway (`/admin`). Nếu đơn hàng không có `webhook_url` riêng, Gateway sẽ tự động gửi về URL mặc định này.
+2. **Cách 2**: Nhập URL vào ô **Callback URL Mặc Định** trong trang Admin Dashboard KOS (`/admin`). Nếu đơn hàng không có `webhook_url` riêng, Gateway sẽ tự động gửi về URL mặc định này.
 
 ---
 
 ### 📩 B. Cấu Trúc Dữ Liệu Webhook Nhận Được (JSON Payload):
 
-KOS Gateway sẽ tự động gửi HTTP POST request đến `webhook_url` của bạn đối với mọi sự kiện thay đổi trạng thái đơn hàng.
+KOS sẽ tự động gửi HTTP POST request đến `webhook_url` của bạn đối với mọi sự kiện thay đổi trạng thái đơn hàng.
 
 #### 1. Webhook Thanh Toán Thành Công (`payment.success`)
 Được kích hoạt ngay khi hệ thống đọc được Email thông báo số dư từ Ngân hàng (MB Bank, Vietcombank, Techcombank, ACB, VPBank, Timo...):
@@ -334,7 +334,7 @@ async def kos_webhook_handler(request: Request):
 
 ## 🚫 5. API Hủy Đơn Hàng (`POST /api/v1/payment/cancel`)
 
-Khi người dùng bấm Hủy đơn trên website bán hàng, Backend gọi API này để đánh dấu hủy đơn trên KOS Gateway:
+Khi người dùng bấm Hủy đơn trên website bán hàng, Backend gọi API này để đánh dấu hủy đơn trên KOS:
 
 * **Endpoint**: `POST https://kos-payment.vercel.app/api/v1/payment/cancel`
 * **Request Body**:

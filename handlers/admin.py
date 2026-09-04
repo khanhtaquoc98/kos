@@ -180,9 +180,9 @@ async def test_telegram_endpoint(authenticated: bool = Depends(get_current_user)
         return {"success": False, "error": "Vui lòng nhập Telegram Chat ID của bạn trên Admin Dashboard!"}
         
     test_msg = (
-        f"🤖 <b>[KOS GATEWAY] TEST THÔNG BÁO TELEGRAM</b>\n"
+        f"🤖 <b>[KOS] TEST THÔNG BÁO TELEGRAM</b>\n"
         f"---------------------------------\n"
-        f"✅ Bot Telegram đã kết nối thành công với KOS Gateway!\n"
+        f"✅ Bot Telegram đã kết nối thành công với KOS!\n"
         f"⏰ <b>Thời gian test:</b> {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n"
         f"📩 <b>Chat ID nhận thông báo:</b> <code>{chat_id}</code>"
     )
@@ -241,7 +241,7 @@ async def subscribe_gmail_watch_endpoint(
             exp_dt = "Không xác định"
 
         tele_msg = (
-            f"🔔 <b>[KOS GATEWAY] KÍCH HOẠT GMAIL PUSH WATCH SUCCESS</b>\n"
+            f"🔔 <b>[KOS] KÍCH HOẠT GMAIL PUSH WATCH SUCCESS</b>\n"
             f"---------------------------------\n"
             f"✅ <b>Trạng thái:</b> Đã kết nối Pub/Sub Push thành công!\n"
             f"📢 <b>Topic:</b> <code>{topic_name}</code>\n"

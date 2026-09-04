@@ -109,7 +109,7 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
     bank_code = gateway_db.get_config("mb_bank_code", "MB")
     if is_success:
         tele_msg = (
-            f"🎉 <b>[KOS GATEWAY] THANH TOÁN THÀNH CÔNG</b>\n"
+            f"🎉 <b>[KOS] THANH TOÁN THÀNH CÔNG</b>\n"
             f"---------------------------------\n"
             f"💰 <b>Số tiền:</b> +{amount:,.0f} VNĐ\n"
             f"📝 <b>Nội dung:</b> {payment.get('content', '')}\n"
@@ -120,7 +120,7 @@ async def send_payment_webhook(payment: dict, status: str, transaction: Optional
         )
     else:
         tele_msg = (
-            f"⚠️ <b>[KOS GATEWAY] ĐƠN HÀNG ĐÃ HỦY</b>\n"
+            f"⚠️ <b>[KOS] ĐƠN HÀNG ĐÃ HỦY</b>\n"
             f"---------------------------------\n"
             f"🔖 <b>Mã đơn hàng:</b> <code>{ref_id}</code>\n"
             f"💰 <b>Số tiền:</b> {amount:,.0f} VNĐ\n"
@@ -211,7 +211,7 @@ async def ensure_gmail_watch_active(force: bool = False):
                     logger.info(f"Auto-renewed Gmail Watch successfully! New expiration: {new_exp}")
                     
                     tele_msg = (
-                        f"🤖 <b>[KOS GATEWAY] GIA HẠN GMAIL WATCH PUSH</b>\n"
+                        f"🤖 <b>[KOS] GIA HẠN GMAIL WATCH PUSH</b>\n"
                         f"---------------------------------\n"
                         f"✅ <b>Trạng thái:</b> Tự động gia hạn thành công (+7 ngày)\n"
                         f"📢 <b>Pub/Sub Topic:</b> <code>{topic_name}</code>\n"
@@ -221,7 +221,7 @@ async def ensure_gmail_watch_active(force: bool = False):
             except Exception as e:
                 logger.error(f"Failed to auto-renew Gmail Watch: {e}")
                 err_msg = (
-                    f"🚨 <b>[KOS GATEWAY] LỖI GIA HẠN GMAIL WATCH PUSH</b>\n"
+                    f"🚨 <b>[KOS] LỖI GIA HẠN GMAIL WATCH PUSH</b>\n"
                     f"---------------------------------\n"
                     f"🔴 <b>Chi tiết lỗi:</b> {str(e)}\n"
                     f"📢 <b>Pub/Sub Topic:</b> <code>{topic_name}</code>"
@@ -370,7 +370,7 @@ async def perform_transaction_check(force: bool = False) -> int:
                             date=txn_date
                         )
                         unmatched_msg = (
-                            f"📥 <b>[KOS GATEWAY] NHẬN EMAIL NGÂN HÀNG MỚI</b>\n"
+                            f"📥 <b>[KOS] NHẬN EMAIL NGÂN HÀNG MỚI</b>\n"
                             f"---------------------------------\n"
                             f"✉️ <b>Tiêu đề:</b> {em.get('subject', 'Không tiêu đề')}\n"
                             f"👤 <b>Người gửi:</b> {em.get('from', 'N/A')}\n"

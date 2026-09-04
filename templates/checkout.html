@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cổng Thanh Toán VietQR - KOS</title>
     <meta name="description" content="Trang thanh toán VietQR an toàn và tiện lợi qua cổng MB Bank.">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -714,10 +716,13 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div class="logo-container">
-                <span class="logo-badge">VietQR</span>
-                <span class="logo-text">KOS</span>
-            </div>
+            <a href="/" style="display: flex; align-items: center; text-decoration: none;">
+                <div class="logo-container">
+                    <img src="/static/logo.png" alt="KOS Logo" style="width: 34px; height: 34px; border-radius: 9px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" onerror="this.src='/static/favicon.png'">
+                    <span class="logo-badge">VietQR</span>
+                    <span class="logo-text">KOS</span>
+                </div>
+            </a>
         </div>
 
         <!-- Main Checkout Box (Single Column Grid Stacked) -->

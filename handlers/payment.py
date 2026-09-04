@@ -31,7 +31,7 @@ router = APIRouter(tags=["Payment"])
 @router.post("/api/payment/create")
 async def create_payment_order(req: CreatePaymentRequest, request: Request):
     """
-    Creates a new payment order in KOS Gateway.
+    Creates a new payment order in KOS.
     Returns checkout URL, VietQR image URL, payment ID, and order details.
     """
     order_ref = req.order_id or req.reference_id or req.orderId or req.orderCode
